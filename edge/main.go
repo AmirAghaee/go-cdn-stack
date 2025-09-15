@@ -81,9 +81,12 @@ func handleRequest(c *gin.Context) {
 		c.String(http.StatusBadGateway, "Error fetching from origin: %v", err)
 		return
 	}
-	defer resp.Body.Close()
-
 	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), body)
+		return
+	}
+	defer resp.Body.Close()
 
 	// Write body to file
 	if err := os.WriteFile(cacheFile, body, 0644); err != nil {
