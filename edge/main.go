@@ -1,18 +1,20 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-// CacheItem Simple in-memory cache
 type CacheItem struct {
-	Data      []byte
+	FilePath  string
 	Header    http.Header
 	ExpiresAt time.Time
 }
@@ -20,24 +22,29 @@ type CacheItem struct {
 var cache = make(map[string]*CacheItem)
 var cacheMutex sync.RWMutex
 
-// Domain → Origin mapping
 var origins = map[string]string{
 	"example.com": "http://localhost:8081", // origin server 1
 	"test.com":    "http://localhost:8082", // origin server 2
 }
 
-// Cache TTL
-const cacheTTL = 30 * time.Second
+const (
+	cacheTTL    = 30 * time.Second
+	cacheDir    = "./cache"
+	metadataExt = ".json"
+)
 
 func main() {
-	r := gin.Default()
+	// Ensure cache dir exists
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		panic(err)
+	}
 
+	r := gin.Default()
 	r.Any("/*path", handleRequest)
 
 	fmt.Println("Edge service running on :8080")
-	err := r.Run(":8080")
-	if err != nil {
-		fmt.Println(err)
+	if err := r.Run(":8080"); err != nil {
+		panic(err)
 	}
 }
 
@@ -50,20 +57,17 @@ func handleRequest(c *gin.Context) {
 	}
 
 	cacheKey := host + c.Request.URL.Path
+	fmt.Println(cacheKey)
+	fmt.Println(fmt.Sprintf("%x.cache", cacheKey))
+	cacheFile := filepath.Join(cacheDir, fmt.Sprintf("%x.cache", cacheKey))
 
-	// 1. Check cache
+	// 1. Check in-memory cache
 	cacheMutex.RLock()
 	item, found := cache[cacheKey]
 	cacheMutex.RUnlock()
 
 	if found && time.Now().Before(item.ExpiresAt) {
-		// Cache hit
-		for k, vals := range item.Header {
-			for _, v := range vals {
-				c.Writer.Header().Add(k, v)
-			}
-		}
-		c.Data(http.StatusOK, item.Header.Get("Content-Type"), item.Data)
+		serveFromFile(c, item)
 		return
 	}
 
@@ -78,20 +82,46 @@ func handleRequest(c *gin.Context) {
 
 	body, _ := io.ReadAll(resp.Body)
 
-	// 3. Save to cache
-	cacheMutex.Lock()
-	cache[cacheKey] = &CacheItem{
-		Data:      body,
+	// Write body to file
+	if err := os.WriteFile(cacheFile, body, 0644); err != nil {
+		c.String(http.StatusInternalServerError, "Error writing cache file: %v", err)
+		return
+	}
+
+	// Save metadata
+	meta := &CacheItem{
+		FilePath:  cacheFile,
 		Header:    resp.Header.Clone(),
 		ExpiresAt: time.Now().Add(cacheTTL),
 	}
+	metaFile := cacheFile + metadataExt
+	metaJSON, _ := json.MarshalIndent(meta, "", "  ")
+	_ = os.WriteFile(metaFile, metaJSON, 0644)
+
+	cacheMutex.Lock()
+	cache[cacheKey] = meta
 	cacheMutex.Unlock()
 
-	// 4. Return response
+	// Return to client
 	for k, vals := range resp.Header {
 		for _, v := range vals {
 			c.Writer.Header().Add(k, v)
 		}
 	}
 	c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), body)
+}
+
+func serveFromFile(c *gin.Context, item *CacheItem) {
+	body, err := os.ReadFile(item.FilePath)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Error reading cache file: %v", err)
+		return
+	}
+
+	for k, vals := range item.Header {
+		for _, v := range vals {
+			c.Writer.Header().Add(k, v)
+		}
+	}
+	c.Data(http.StatusOK, item.Header.Get("Content-Type"), body)
 }
