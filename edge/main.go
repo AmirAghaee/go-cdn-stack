@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,7 +30,7 @@ var origins = map[string]string{
 }
 
 const (
-	cacheTTL    = 30 * time.Second
+	cacheTTL    = 180 * time.Second
 	cacheDir    = "./cache"
 	metadataExt = ".json"
 )
@@ -38,6 +40,9 @@ func main() {
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		panic(err)
 	}
+
+	// Load previously cached files
+	loadCacheFromDisk()
 
 	r := gin.Default()
 	r.Any("/*path", handleRequest)
@@ -57,8 +62,6 @@ func handleRequest(c *gin.Context) {
 	}
 
 	cacheKey := host + c.Request.URL.Path
-	fmt.Println(cacheKey)
-	fmt.Println(fmt.Sprintf("%x.cache", cacheKey))
 	cacheFile := filepath.Join(cacheDir, fmt.Sprintf("%x.cache", cacheKey))
 
 	// 1. Check in-memory cache
@@ -124,4 +127,54 @@ func serveFromFile(c *gin.Context, item *CacheItem) {
 		}
 	}
 	c.Data(http.StatusOK, item.Header.Get("Content-Type"), body)
+}
+
+func loadCacheFromDisk() {
+	files, err := os.ReadDir(cacheDir)
+	if err != nil {
+		fmt.Println("Error reading cache dir:", err)
+		return
+	}
+
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+
+		name := f.Name()
+		if !strings.HasSuffix(name, ".cache.json") {
+			continue
+		}
+
+		metaFile := filepath.Join(cacheDir, name)
+		data, err := os.ReadFile(metaFile)
+		if err != nil {
+			fmt.Println("Error reading cache metadata:", err)
+			continue
+		}
+
+		var item CacheItem
+		if err := json.Unmarshal(data, &item); err != nil {
+			fmt.Println("Error parsing cache metadata:", err)
+			continue
+		}
+
+		// Only load if not expired
+		if time.Now().Before(item.ExpiresAt) {
+			// Extract original cacheKey from file name
+			// e.g. "6578616d706c652e636f6d2f696d6167652e6a7067.cache.json" → decode hex
+			hexName := strings.TrimSuffix(name, ".cache.json")
+			keyBytes, err := hex.DecodeString(hexName)
+			if err != nil {
+				fmt.Println("Error decoding hex filename:", err)
+				continue
+			}
+			cacheKey := string(keyBytes)
+
+			cacheMutex.Lock()
+			cache[cacheKey] = &item
+			cacheMutex.Unlock()
+		}
+	}
+	fmt.Printf("Loaded %d cache items from disk\n", len(cache))
 }
