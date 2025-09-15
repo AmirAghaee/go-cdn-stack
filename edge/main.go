@@ -30,7 +30,7 @@ var origins = map[string]string{
 }
 
 const (
-	cacheTTL    = 180 * time.Second
+	cacheTTL    = 10 * time.Second
 	cacheDir    = "./cache"
 	metadataExt = ".json"
 )
@@ -43,6 +43,9 @@ func main() {
 
 	// Load previously cached files
 	loadCacheFromDisk()
+
+	// Start background cleanup
+	go startCacheCleaner()
 
 	r := gin.Default()
 	r.Any("/*path", handleRequest)
@@ -180,4 +183,27 @@ func loadCacheFromDisk() {
 		}
 	}
 	fmt.Printf("Loaded %d cache items from disk\n", len(cache))
+}
+
+func startCacheCleaner() {
+	ticker := time.NewTicker(60 * time.Second) // check every 1 minute
+	defer ticker.Stop()
+
+	for {
+		<-ticker.C
+		now := time.Now()
+
+		cacheMutex.Lock()
+		for key, item := range cache {
+			if now.After(item.ExpiresAt) {
+				// Delete file + metadata
+				_ = os.Remove(item.FilePath)
+				_ = os.Remove(item.FilePath + metadataExt)
+
+				delete(cache, key)
+				fmt.Println("Deleted expired cache:", item.FilePath)
+			}
+		}
+		cacheMutex.Unlock()
+	}
 }
