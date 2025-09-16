@@ -12,6 +12,7 @@ type CacheItem struct {
 }
 
 type Config struct {
+	GinMode         string
 	CacheTTL        time.Duration
 	CacheDir        string
 	MetadataExt     string

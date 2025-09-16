@@ -30,7 +30,9 @@ func main() {
 	cacheRepo.StartCleaner()
 
 	// Setup HTTP server
+	gin.SetMode(cfg.GinMode)
 	r := gin.Default()
+
 	r.GET("/*path", httpHandler.HandleRequest)
 	// All other methods are proxied directly to origin
 	r.POST("/*path", httpHandler.HandleProxyRequest)

@@ -16,6 +16,7 @@ func Load() *domain.Config {
 	}
 
 	config := &domain.Config{
+		GinMode:     "debug",
 		CacheDir:    "./cache",
 		MetadataExt: ".json",
 		Port:        ":8080",
@@ -53,6 +54,11 @@ func Load() *domain.Config {
 	}
 	if config.CleanerInterval == 0 {
 		config.CleanerInterval = 60 * time.Second
+	}
+
+	// Load gin mode
+	if ginMode := os.Getenv("APP_MODE"); ginMode != "" {
+		config.GinMode = ginMode
 	}
 
 	return config
