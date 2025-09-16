@@ -94,9 +94,9 @@ func (s *EdgeServiceImpl) fetchAndCache(c *gin.Context, origin, cacheKey string)
 		ExpiresAt: time.Now().Add(s.config.CacheTTL),
 	}
 
-	metaFile := cacheFile + s.config.MetadataExt
+	metaFileName := cacheFile + s.config.MetadataExt
 	if metaJSON, err := json.MarshalIndent(item, "", "  "); err == nil {
-		_ = os.WriteFile(metaFile, metaJSON, 0644)
+		_ = os.WriteFile(metaFileName, metaJSON, 0644)
 	}
 
 	s.cache.Set(cacheKey, item)
