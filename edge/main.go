@@ -33,7 +33,7 @@ func main() {
 	gin.SetMode(cfg.GinMode)
 	r := gin.Default()
 
-	r.GET("/*path", httpHandler.HandleRequest)
+	r.GET("/*path", httpHandler.HandleCacheRequest)
 	// All other methods are proxied directly to origin
 	r.POST("/*path", httpHandler.HandleProxyRequest)
 	r.PUT("/*path", httpHandler.HandleProxyRequest)

@@ -16,7 +16,7 @@ func NewHTTPHandler(edgeService service.EdgeService) *HTTPHandler {
 	}
 }
 
-func (h *HTTPHandler) HandleRequest(c *gin.Context) {
+func (h *HTTPHandler) HandleCacheRequest(c *gin.Context) {
 	h.edgeService.CacheRequest(c)
 }
 
