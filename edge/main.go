@@ -31,15 +31,43 @@ var origins = map[string]string{
 	"test.com":    "http://localhost:8082", // origin server 2
 }
 
-const (
-	cacheTTL    = 10 * time.Second
-	cacheDir    = "./cache"
-	metadataExt = ".json"
+var (
+	cacheTTL    time.Duration
+	cacheDir    string
+	metadataExt string
 )
 
 func main() {
+	// Load .env file
 	if err := godotenv.Load(); err != nil {
-		panic("No .env file found, using defaults")
+		fmt.Println("No .env file found, using defaults")
+	}
+
+	// CACHE_TTL
+	ttlStr := os.Getenv("CACHE_TTL")
+	ttl, err := strconv.Atoi(ttlStr)
+	if err != nil || ttl <= 0 {
+		ttl = 10
+	}
+	cacheTTL = time.Duration(ttl) * time.Second
+
+	// CACHE_DIR
+	cacheDir = os.Getenv("CACHE_DIR")
+	if cacheDir == "" {
+		cacheDir = "./cache"
+	}
+
+	// CACHE_METADATA_EXT
+	metadataExt = os.Getenv("CACHE_METADATA_EXT")
+	if metadataExt == "" {
+		metadataExt = ".json"
+	}
+
+	// CACHE_CLEANER_TTL
+	cleanerStr := os.Getenv("CACHE_CLEANER_TTL")
+	cleaner, err := strconv.Atoi(cleanerStr)
+	if err != nil || cleaner <= 0 {
+		cleaner = 60
 	}
 
 	// Ensure cache dir exists
@@ -51,12 +79,7 @@ func main() {
 	loadCacheFromDisk()
 
 	// Start background cleanup
-	ttlStr := os.Getenv("CACHE_CLEANER_TTL")
-	ttl, err := strconv.Atoi(ttlStr)
-	if err != nil || ttl <= 0 {
-		ttl = 60
-	}
-	go startCacheCleaner(ttl)
+	go startCacheCleaner(cleaner)
 
 	r := gin.Default()
 	r.Any("/*path", handleRequest)
