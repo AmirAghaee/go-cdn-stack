@@ -8,11 +8,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 type CacheItem struct {
@@ -36,6 +38,10 @@ const (
 )
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		panic("No .env file found, using defaults")
+	}
+
 	// Ensure cache dir exists
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		panic(err)
@@ -45,7 +51,12 @@ func main() {
 	loadCacheFromDisk()
 
 	// Start background cleanup
-	go startCacheCleaner()
+	ttlStr := os.Getenv("CACHE_CLEANER_TTL")
+	ttl, err := strconv.Atoi(ttlStr)
+	if err != nil || ttl <= 0 {
+		ttl = 60
+	}
+	go startCacheCleaner(ttl)
 
 	r := gin.Default()
 	r.Any("/*path", handleRequest)
@@ -185,8 +196,8 @@ func loadCacheFromDisk() {
 	fmt.Printf("Loaded %d cache items from disk\n", len(cache))
 }
 
-func startCacheCleaner() {
-	ticker := time.NewTicker(60 * time.Second) // check every 1 minute
+func startCacheCleaner(ttl int) {
+	ticker := time.NewTicker(time.Duration(ttl) * time.Second)
 	defer ticker.Stop()
 
 	for {
