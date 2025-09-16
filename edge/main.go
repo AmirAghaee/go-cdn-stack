@@ -32,6 +32,13 @@ func main() {
 	// Setup HTTP server
 	r := gin.Default()
 	r.GET("/*path", httpHandler.HandleRequest)
+	// All other methods are proxied directly to origin
+	r.POST("/*path", httpHandler.HandleProxyRequest)
+	r.PUT("/*path", httpHandler.HandleProxyRequest)
+	r.DELETE("/*path", httpHandler.HandleProxyRequest)
+	r.PATCH("/*path", httpHandler.HandleProxyRequest)
+	r.HEAD("/*path", httpHandler.HandleProxyRequest)
+	r.OPTIONS("/*path", httpHandler.HandleProxyRequest)
 
 	fmt.Printf("Edge service running on %s\n", cfg.Port)
 	if err := r.Run(cfg.Port); err != nil {
