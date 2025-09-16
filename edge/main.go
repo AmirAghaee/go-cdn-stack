@@ -1,243 +1,40 @@
 package main
 
 import (
-	"encoding/hex"
-	"encoding/json"
+	"cdneto/internal/config"
+	"cdneto/internal/handler"
+	"cdneto/internal/repository"
+	"cdneto/internal/service"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
-)
-
-type CacheItem struct {
-	FilePath  string
-	Header    http.Header
-	ExpiresAt time.Time
-}
-
-var cache = make(map[string]*CacheItem)
-var cacheMutex sync.RWMutex
-
-var origins = map[string]string{
-	"example.com": "http://localhost:8081", // origin server 1
-	"test.com":    "http://localhost:8082", // origin server 2
-}
-
-var (
-	cacheTTL    time.Duration
-	cacheDir    string
-	metadataExt string
 )
 
 func main() {
-	// Load .env file
-	if err := godotenv.Load(); err != nil {
-		fmt.Println("No .env file found, using defaults")
-	}
+	// Load configuration
+	cfg := config.Load()
 
-	// CACHE_TTL
-	ttlStr := os.Getenv("CACHE_TTL")
-	ttl, err := strconv.Atoi(ttlStr)
-	if err != nil || ttl <= 0 {
-		ttl = 10
-	}
-	cacheTTL = time.Duration(ttl) * time.Second
-
-	// CACHE_DIR
-	cacheDir = os.Getenv("CACHE_DIR")
-	if cacheDir == "" {
-		cacheDir = "./cache"
-	}
-
-	// CACHE_METADATA_EXT
-	metadataExt = os.Getenv("CACHE_METADATA_EXT")
-	if metadataExt == "" {
-		metadataExt = ".json"
-	}
-
-	// CACHE_CLEANER_TTL
-	cleanerStr := os.Getenv("CACHE_CLEANER_TTL")
-	cleaner, err := strconv.Atoi(cleanerStr)
-	if err != nil || cleaner <= 0 {
-		cleaner = 60
-	}
-
-	// Ensure cache dir exists
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+	// Ensure cache directory exists
+	if err := os.MkdirAll(cfg.CacheDir, 0755); err != nil {
 		panic(err)
 	}
 
-	// Load previously cached files
-	loadCacheFromDisk()
+	// Initialize dependencies
+	cacheRepo := repository.NewInMemoryCache(cfg)
+	edgeService := service.NewEdgeService(cacheRepo, cfg)
+	httpHandler := handler.NewHTTPHandler(edgeService)
 
-	// Start background cleanup
-	go startCacheCleaner(cleaner)
+	// Load existing cache and start cleaner
+	cacheRepo.LoadFromDisk()
+	cacheRepo.StartCleaner()
 
+	// Setup HTTP server
 	r := gin.Default()
-	r.Any("/*path", handleRequest)
+	r.GET("/*path", httpHandler.HandleRequest)
 
-	fmt.Println("Edge service running on :8080")
-	if err := r.Run(":8080"); err != nil {
+	fmt.Printf("Edge service running on %s\n", cfg.Port)
+	if err := r.Run(cfg.Port); err != nil {
 		panic(err)
-	}
-}
-
-func handleRequest(c *gin.Context) {
-	host := c.Request.Host
-	origin, ok := origins[host]
-	if !ok {
-		c.String(http.StatusBadGateway, "Unknown host: %s", host)
-		return
-	}
-
-	cacheKey := host + c.Request.URL.Path
-	cacheFile := filepath.Join(cacheDir, fmt.Sprintf("%x.cache", cacheKey))
-
-	// 1. Check in-memory cache
-	cacheMutex.RLock()
-	item, found := cache[cacheKey]
-	cacheMutex.RUnlock()
-
-	if found && time.Now().Before(item.ExpiresAt) {
-		serveFromFile(c, item)
-		return
-	}
-
-	// 2. Fetch from origin
-	targetURL := origin + c.Request.URL.Path
-	resp, err := http.Get(targetURL)
-	if err != nil {
-		c.String(http.StatusBadGateway, "Error fetching from origin: %v", err)
-		return
-	}
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode >= 400 {
-		c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), body)
-		return
-	}
-	defer resp.Body.Close()
-
-	// Write body to file
-	if err := os.WriteFile(cacheFile, body, 0644); err != nil {
-		c.String(http.StatusInternalServerError, "Error writing cache file: %v", err)
-		return
-	}
-
-	// Save metadata
-	meta := &CacheItem{
-		FilePath:  cacheFile,
-		Header:    resp.Header.Clone(),
-		ExpiresAt: time.Now().Add(cacheTTL),
-	}
-	metaFile := cacheFile + metadataExt
-	metaJSON, _ := json.MarshalIndent(meta, "", "  ")
-	_ = os.WriteFile(metaFile, metaJSON, 0644)
-
-	cacheMutex.Lock()
-	cache[cacheKey] = meta
-	cacheMutex.Unlock()
-
-	// Return to client
-	for k, vals := range resp.Header {
-		for _, v := range vals {
-			c.Writer.Header().Add(k, v)
-		}
-	}
-	c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), body)
-}
-
-func serveFromFile(c *gin.Context, item *CacheItem) {
-	body, err := os.ReadFile(item.FilePath)
-	if err != nil {
-		c.String(http.StatusInternalServerError, "Error reading cache file: %v", err)
-		return
-	}
-
-	for k, vals := range item.Header {
-		for _, v := range vals {
-			c.Writer.Header().Add(k, v)
-		}
-	}
-	c.Data(http.StatusOK, item.Header.Get("Content-Type"), body)
-}
-
-func loadCacheFromDisk() {
-	files, err := os.ReadDir(cacheDir)
-	if err != nil {
-		fmt.Println("Error reading cache dir:", err)
-		return
-	}
-
-	for _, f := range files {
-		if f.IsDir() {
-			continue
-		}
-
-		name := f.Name()
-		if !strings.HasSuffix(name, ".cache.json") {
-			continue
-		}
-
-		metaFile := filepath.Join(cacheDir, name)
-		data, err := os.ReadFile(metaFile)
-		if err != nil {
-			fmt.Println("Error reading cache metadata:", err)
-			continue
-		}
-
-		var item CacheItem
-		if err := json.Unmarshal(data, &item); err != nil {
-			fmt.Println("Error parsing cache metadata:", err)
-			continue
-		}
-
-		// Only load if not expired
-		if time.Now().Before(item.ExpiresAt) {
-			// Extract original cacheKey from file name
-			// e.g. "6578616d706c652e636f6d2f696d6167652e6a7067.cache.json" → decode hex
-			hexName := strings.TrimSuffix(name, ".cache.json")
-			keyBytes, err := hex.DecodeString(hexName)
-			if err != nil {
-				fmt.Println("Error decoding hex filename:", err)
-				continue
-			}
-			cacheKey := string(keyBytes)
-
-			cacheMutex.Lock()
-			cache[cacheKey] = &item
-			cacheMutex.Unlock()
-		}
-	}
-	fmt.Printf("Loaded %d cache items from disk\n", len(cache))
-}
-
-func startCacheCleaner(ttl int) {
-	ticker := time.NewTicker(time.Duration(ttl) * time.Second)
-	defer ticker.Stop()
-
-	for {
-		<-ticker.C
-		now := time.Now()
-
-		cacheMutex.Lock()
-		for key, item := range cache {
-			if now.After(item.ExpiresAt) {
-				// Delete file + metadata
-				_ = os.Remove(item.FilePath)
-				_ = os.Remove(item.FilePath + metadataExt)
-
-				delete(cache, key)
-				fmt.Println("Deleted expired cache:", item.FilePath)
-			}
-		}
-		cacheMutex.Unlock()
 	}
 }
