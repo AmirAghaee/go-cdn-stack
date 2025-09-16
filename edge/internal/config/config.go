@@ -1,7 +1,7 @@
 package config
 
 import (
-	"cdneto/internal/domain"
+	"edge/internal/domain"
 	"fmt"
 	"os"
 	"strconv"

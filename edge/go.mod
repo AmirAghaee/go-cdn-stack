@@ -1,4 +1,4 @@
-module cdneto
+module edge
 
 go 1.25
 

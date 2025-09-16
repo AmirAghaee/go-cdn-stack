@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"cdneto/internal/service"
+	"edge/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

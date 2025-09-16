@@ -1,8 +1,8 @@
 package service
 
 import (
-	"cdneto/internal/domain"
-	"cdneto/internal/repository"
+	"edge/internal/domain"
+	"edge/internal/repository"
 	"encoding/json"
 	"fmt"
 	"io"

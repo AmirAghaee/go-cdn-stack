@@ -1,6 +1,6 @@
 package repository
 
-import "cdneto/internal/domain"
+import "edge/internal/domain"
 
 type CacheRepository interface {
 	Get(key string) (*domain.CacheItem, bool)

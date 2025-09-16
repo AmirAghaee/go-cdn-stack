@@ -1,10 +1,10 @@
 package main
 
 import (
-	"cdneto/internal/config"
-	"cdneto/internal/handler"
-	"cdneto/internal/repository"
-	"cdneto/internal/service"
+	"edge/internal/config"
+	"edge/internal/handler"
+	"edge/internal/repository"
+	"edge/internal/service"
 	"fmt"
 	"os"
 

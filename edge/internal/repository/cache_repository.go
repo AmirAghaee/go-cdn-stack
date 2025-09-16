@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"cdneto/internal/domain"
+	"edge/internal/domain"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
