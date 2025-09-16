@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +17,7 @@ import (
 
 type EdgeService interface {
 	CacheRequest(c *gin.Context)
+	ProxyRequest(c *gin.Context)
 }
 
 type EdgeServiceImpl struct {
@@ -46,8 +48,88 @@ func (s *EdgeServiceImpl) CacheRequest(c *gin.Context) {
 		return
 	}
 
-	// Fetch from origin
 	s.fetchAndCache(c, origin, cacheKey)
+}
+
+func (s *EdgeServiceImpl) ProxyRequest(c *gin.Context) {
+	host := c.Request.Host
+	origin, ok := s.config.Origins[host]
+	if !ok {
+		c.String(http.StatusBadGateway, "Unknown host: %s", host)
+		return
+	}
+
+	s.proxyToOrigin(c, origin)
+}
+
+func (s *EdgeServiceImpl) proxyToOrigin(c *gin.Context, origin string) {
+	targetURL := origin + c.Request.URL.RequestURI()
+
+	// Create request to origin
+	req, err := http.NewRequest(c.Request.Method, targetURL, c.Request.Body)
+	if err != nil {
+		c.String(http.StatusBadGateway, "Error creating request: %v", err)
+		return
+	}
+
+	// Copy headers from original request
+	for key, values := range c.Request.Header {
+		// Skip hop-by-hop headers
+		if isHopByHopHeader(key) {
+			continue
+		}
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
+	}
+
+	// Add X-Forwarded-Host header to indicate the original host
+	req.Header.Set("X-Forwarded-Host", c.Request.Host)
+	req.Header.Set("X-Forwarded-For", c.ClientIP())
+
+	// Make request to origin
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		c.String(http.StatusBadGateway, "Error forwarding request: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Copy response headers
+	for key, values := range resp.Header {
+		if isHopByHopHeader(key) {
+			continue
+		}
+		for _, value := range values {
+			c.Writer.Header().Add(key, value)
+		}
+	}
+
+	// Copy response body
+	c.Status(resp.StatusCode)
+	_, _ = io.Copy(c.Writer, resp.Body)
+}
+
+func isHopByHopHeader(header string) bool {
+	hopByHopHeaders := []string{
+		"Connection",
+		"Keep-Alive",
+		"Proxy-Authenticate",
+		"Proxy-Authorization",
+		"Te",
+		"Trailers",
+		"Transfer-Encoding",
+		"Upgrade",
+	}
+
+	header = strings.ToLower(header)
+	for _, h := range hopByHopHeaders {
+		if strings.ToLower(h) == header {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *EdgeServiceImpl) serveFromFile(c *gin.Context, item *domain.CacheItem) {

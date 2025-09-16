@@ -19,3 +19,7 @@ func NewHTTPHandler(edgeService service.EdgeService) *HTTPHandler {
 func (h *HTTPHandler) HandleRequest(c *gin.Context) {
 	h.edgeService.CacheRequest(c)
 }
+
+func (h *HTTPHandler) HandleProxyRequest(c *gin.Context) {
+	h.edgeService.ProxyRequest(c)
+}
