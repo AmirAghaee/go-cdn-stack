@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"control-panel/internal/domain"
+	"control-panel/internal/helper"
 	"control-panel/internal/repository"
 )
 
@@ -25,7 +26,11 @@ func NewCdnService(r repository.CdnRepositoryInterface) *CdnService {
 	}
 }
 
-func (c *CdnService) Create(ctx context.Context, origin, domainName string, isActive bool) error {
+func (c *CdnService) Create(ctx context.Context, origin string, domainName string, isActive bool) error {
+	_, err := c.repo.GetCDNByOrigin(ctx, origin)
+	if err != nil {
+		return helper.ErrCdnExists()
+	}
 	cdn := &domain.CDN{Origin: origin, Domain: domainName, IsActive: isActive}
 	return c.repo.CreateCDN(ctx, cdn)
 }

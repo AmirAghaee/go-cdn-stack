@@ -16,6 +16,7 @@ type CdnRepositoryInterface interface {
 	GetCDN(ctx context.Context, id string) (*domain.CDN, error)
 	UpdateCDN(ctx context.Context, id string, c *domain.CDN) error
 	DeleteCDN(ctx context.Context, id string) error
+	GetCDNByOrigin(ctx context.Context, origin string) (*domain.CDN, error)
 }
 
 type CdnRepository struct {
@@ -94,4 +95,13 @@ func (m *CdnRepository) DeleteCDN(ctx context.Context, id string) error {
 		return errors.New("not found")
 	}
 	return nil
+}
+
+func (m *CdnRepository) GetCDNByOrigin(ctx context.Context, origin string) (*domain.CDN, error) {
+	var cdn domain.CDN
+	err := m.db.Collection("users").FindOne(ctx, bson.M{"email": origin}).Decode(&cdn)
+	if err != nil {
+		return nil, err
+	}
+	return &cdn, nil
 }

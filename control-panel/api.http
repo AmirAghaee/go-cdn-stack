@@ -1,0 +1,39 @@
+### users list
+GET http://localhost:8090/users
+Accept: application/json
+
+### users create
+POST http://localhost:8090/users
+Content-Type: application/json
+
+{
+  "email": "amir.aghaee73@gmail.com",
+  "password": "amir24"
+}
+
+### user login
+POST http://localhost:8090/login
+Content-Type: application/json
+
+{
+  "email": "amir.aghaee73@gmail.com",
+  "password": "amir24a"
+}
+
+### cdns list
+GET http://localhost:8090/cdns
+Content-Type: application/json
+
+### cdn create
+POST http://localhost:8090/cdns
+Content-Type: application/json
+
+{
+  "origin": "localhost:8082",
+  "domain": "example.com",
+  "is_active": true
+}
+
+### cdn delete
+DELETE http://localhost:8090/cdns/68caa221474affe1e9d178c4
+Content-Type: application/json

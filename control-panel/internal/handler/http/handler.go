@@ -46,13 +46,22 @@ func (h *Handler) createCDN(c *gin.Context) {
 		IsActive bool   `json:"is_active"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		sErr := helper.ErrInvalidInput()
+		c.JSON(sErr.Code, gin.H{"error": sErr.Message})
 		return
 	}
+
 	if err := h.cdnService.Create(context.Background(), body.Origin, body.Domain, body.IsActive); err != nil {
+		var sErr *helper.ServiceError
+		if errors.As(err, &sErr) {
+			c.JSON(sErr.Code, gin.H{"error": sErr.Message})
+			return
+		}
+		// fallback unexpected error
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
 	c.Status(http.StatusCreated)
 }
 
@@ -134,12 +143,14 @@ func (h *Handler) loginUser(c *gin.Context) {
 		Password string `json:"password" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		sErr := helper.ErrInvalidInput()
+		c.JSON(sErr.Code, gin.H{"error": sErr.Message})
 		return
 	}
 	user, err := h.userService.Login(context.Background(), body.Email, body.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		sErr := helper.ErrUnAuthorized()
+		c.JSON(sErr.Code, gin.H{"error": sErr.Message})
 		return
 	}
 	c.JSON(http.StatusOK, user)

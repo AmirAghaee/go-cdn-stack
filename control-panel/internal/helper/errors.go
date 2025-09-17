@@ -24,3 +24,17 @@ func ErrInvalidInput() *ServiceError {
 		Message: "invalid inputs",
 	}
 }
+
+func ErrUnAuthorized() *ServiceError {
+	return &ServiceError{
+		Code:    http.StatusUnauthorized,
+		Message: "invalid credentials",
+	}
+}
+
+func ErrCdnExists() *ServiceError {
+	return &ServiceError{
+		Code:    http.StatusBadRequest,
+		Message: "cdn already exists",
+	}
+}
