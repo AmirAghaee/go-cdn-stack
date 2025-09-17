@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"control-panel/internal/domain"
+	"control-panel/internal/helper"
 	"control-panel/internal/repository"
 	"errors"
 
@@ -29,7 +30,7 @@ func NewUserService(r repository.UserRepositoryInterface) UserServiceInterface {
 func (u *UserService) Register(ctx context.Context, email string, password string) error {
 	_, err := u.repo.GetUserByEmail(ctx, email)
 	if err == nil {
-		return errors.New("user exists")
+		return helper.ErrUserExists()
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	user := &domain.User{Email: email, Password: string(hash)}

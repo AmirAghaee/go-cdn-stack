@@ -2,6 +2,8 @@ package http
 
 import (
 	"context"
+	"control-panel/internal/helper"
+	"errors"
 	"net/http"
 
 	"control-panel/internal/service"
@@ -104,10 +106,17 @@ func (h *Handler) createUser(c *gin.Context) {
 		Password string `json:"password" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		sErr := helper.ErrInvalidInput()
+		c.JSON(sErr.Code, gin.H{"error": sErr.Message})
 		return
 	}
 	if err := h.userService.Register(context.Background(), body.Email, body.Password); err != nil {
+		var sErr *helper.ServiceError
+		if errors.As(err, &sErr) {
+			c.JSON(sErr.Code, gin.H{"error": sErr.Message})
+			return
+		}
+		// fallback unexpected error
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
