@@ -10,13 +10,3 @@ type CacheItem struct {
 	Header    http.Header `json:"header"`
 	ExpiresAt time.Time   `json:"expires_at"`
 }
-
-type Config struct {
-	GinMode         string
-	CacheTTL        time.Duration
-	CacheDir        string
-	MetadataExt     string
-	CleanerInterval time.Duration
-	Port            string
-	Origins         map[string]string
-}

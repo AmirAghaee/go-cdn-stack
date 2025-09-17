@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"edge/internal/config"
 	"edge/internal/domain"
 	"encoding/hex"
 	"encoding/json"
@@ -15,10 +16,10 @@ import (
 type InMemoryCache struct {
 	cache  map[string]*domain.CacheItem
 	mutex  sync.RWMutex
-	config *domain.Config
+	config *config.Config
 }
 
-func NewInMemoryCache(config *domain.Config) CacheRepository {
+func NewInMemoryCache(config *config.Config) CacheRepository {
 	return &InMemoryCache{
 		cache:  make(map[string]*domain.CacheItem),
 		config: config,

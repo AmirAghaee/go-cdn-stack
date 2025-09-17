@@ -1,6 +1,7 @@
 package service
 
 import (
+	"edge/internal/config"
 	"edge/internal/domain"
 	"edge/internal/repository"
 	"encoding/json"
@@ -22,10 +23,10 @@ type EdgeService interface {
 
 type EdgeServiceImpl struct {
 	cache  repository.CacheRepository
-	config *domain.Config
+	config *config.Config
 }
 
-func NewEdgeService(cache repository.CacheRepository, config *domain.Config) EdgeService {
+func NewEdgeService(cache repository.CacheRepository, config *config.Config) EdgeService {
 	return &EdgeServiceImpl{
 		cache:  cache,
 		config: config,

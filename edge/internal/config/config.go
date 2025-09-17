@@ -1,7 +1,6 @@
 package config
 
 import (
-	"edge/internal/domain"
 	"fmt"
 	"os"
 	"strconv"
@@ -10,12 +9,22 @@ import (
 	"github.com/joho/godotenv"
 )
 
-func Load() *domain.Config {
+type Config struct {
+	GinMode         string
+	CacheTTL        time.Duration
+	CacheDir        string
+	MetadataExt     string
+	CleanerInterval time.Duration
+	Port            string
+	Origins         map[string]string
+}
+
+func Load() *Config {
 	if err := godotenv.Load(); err != nil {
 		fmt.Println("No .env file found, using defaults")
 	}
 
-	config := &domain.Config{
+	config := &Config{
 		GinMode:     "debug",
 		CacheDir:    "./cache",
 		MetadataExt: ".json",
