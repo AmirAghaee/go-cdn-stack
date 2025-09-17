@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"control-panel/internal/helper"
+	"control-panel/internal/nats"
 	"errors"
 	"net/http"
 
@@ -14,12 +15,14 @@ import (
 type Handler struct {
 	cdnService  service.CdnServiceInterface
 	userService service.UserServiceInterface
+	natsPub     *nats.Publisher
 }
 
-func NewHTTPHandler(cdnService service.CdnServiceInterface, userService service.UserServiceInterface) *Handler {
+func NewHTTPHandler(cdnService service.CdnServiceInterface, userService service.UserServiceInterface, natsPub *nats.Publisher) *Handler {
 	return &Handler{
 		cdnService:  cdnService,
 		userService: userService,
+		natsPub:     natsPub,
 	}
 }
 
@@ -35,6 +38,10 @@ func (h *Handler) Register(r *gin.Engine) {
 	r.POST("/users", h.createUser)
 	r.GET("/users", h.listUsers)
 	r.POST("/login", h.loginUser)
+
+	// Snapshot routes
+	r.POST("/snapshot", h.snapshot)
+
 }
 
 // ================== CDN Handlers ==================
@@ -154,4 +161,12 @@ func (h *Handler) loginUser(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, user)
+}
+
+func (h *Handler) snapshot(c *gin.Context) {
+	if err := h.natsPub.Publish("cdn.snapshot", `{"event":"snapshot"}`); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to publish snapshot"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "snapshot published"})
 }

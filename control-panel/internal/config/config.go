@@ -10,6 +10,7 @@ type Config struct {
 	MongoURI string
 	DB       string
 	Port     string
+	NatsURL  string
 }
 
 func Load() *Config {
@@ -18,6 +19,7 @@ func Load() *Config {
 	uri := os.Getenv("MONGO_URI")
 	db := os.Getenv("MONGO_DB")
 	port := os.Getenv("PORT")
+	natsUrl := os.Getenv("NATS_URL")
 
 	if uri == "" || db == "" {
 		panic("MONGO_URI and MONGO_DB must be set in env")
@@ -27,5 +29,6 @@ func Load() *Config {
 		MongoURI: uri,
 		DB:       db,
 		Port:     port,
+		NatsURL:  natsUrl,
 	}
 }

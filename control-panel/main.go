@@ -4,6 +4,7 @@ import (
 	"context"
 	"control-panel/internal/config"
 	"control-panel/internal/handler/http"
+	"control-panel/internal/nats"
 	"control-panel/internal/repository"
 	"control-panel/internal/service"
 	"fmt"
@@ -30,6 +31,12 @@ func main() {
 		log.Fatalf("mongo ping: %v", err)
 	}
 
+	// setup NATS publisher
+	natsPublisher, err := nats.NewPublisher(cfg.NatsURL)
+	if err != nil {
+		log.Fatalf("nats connect: %v", err)
+	}
+
 	// repositories
 	userRepo := repository.NewUserRepository(client, cfg.DB)
 	cdnRepo := repository.NewCdnRepository(client, cfg.DB)
@@ -40,7 +47,7 @@ func main() {
 
 	// http handler
 	r := gin.Default()
-	h := http.NewHTTPHandler(cdnService, userService)
+	h := http.NewHTTPHandler(cdnService, userService, natsPublisher)
 	h.Register(r)
 
 	port := cfg.Port

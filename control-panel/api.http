@@ -37,3 +37,7 @@ Content-Type: application/json
 ### cdn delete
 DELETE http://localhost:8090/cdns/68caa221474affe1e9d178c4
 Content-Type: application/json
+
+### snapshot
+POST http://localhost:9000/snapshot
+Content-Type: application/json
