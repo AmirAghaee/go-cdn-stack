@@ -47,8 +47,7 @@ func main() {
 
 	// http handler
 	r := gin.Default()
-	h := http.NewHTTPHandler(cdnService, userService, natsPublisher)
-	h.Register(r)
+	http.RegisterRoutes(r, cdnService, userService, natsPublisher)
 
 	port := cfg.Port
 	if port == "" {
