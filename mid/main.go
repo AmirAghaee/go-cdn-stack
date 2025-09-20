@@ -5,6 +5,7 @@ import (
 	"log"
 	"mid/internal/client"
 	"mid/internal/config"
+	"mid/internal/handler/http"
 	"mid/internal/messaging"
 	"mid/internal/service"
 	"mid/internal/subscriber"
@@ -26,6 +27,7 @@ func main() {
 
 	// setup services
 	cdnSnapshotService := service.NewCdnSnapshotService(controlPanelClient)
+	cacheService := service.NewCacheService()
 
 	// first time sync with control panel
 	if err := cdnSnapshotService.ProcessSnapshot(); err != nil {
@@ -39,6 +41,7 @@ func main() {
 	}
 
 	r := gin.Default()
+	http.RegisterRoutes(r, cacheService)
 
 	fmt.Printf("Server running on :%s\n", cfg.Port)
 	_ = r.Run(":" + cfg.Port)
