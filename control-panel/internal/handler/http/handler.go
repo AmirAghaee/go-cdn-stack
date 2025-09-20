@@ -168,5 +168,5 @@ func (h *Handler) snapshot(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to publish snapshot"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"status": "snapshot published"})
+	c.JSON(http.StatusOK, gin.H{"message": "snapshot published"})
 }
