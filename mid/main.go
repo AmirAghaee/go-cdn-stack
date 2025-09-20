@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"mid/internal/client"
 	"mid/internal/config"
 	"mid/internal/messaging"
 	"mid/internal/service"
@@ -20,8 +21,11 @@ func main() {
 		log.Fatalf("messaging connect: %v", err)
 	}
 
+	// setup clients
+	controlPanelClient := client.NewControlPanelClient(cfg.ControlPanelURL)
+
 	// setup services
-	cdnSnapshotService := service.NewCdnSnapshotService()
+	cdnSnapshotService := service.NewCdnSnapshotService(controlPanelClient)
 
 	// setup subscribers
 	cdnSnapshotSub := subscriber.NewCdnSnapshotSubscriber(natsBroker, cdnSnapshotService)
