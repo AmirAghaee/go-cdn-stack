@@ -4,7 +4,7 @@ import (
 	"context"
 	"control-panel/internal/config"
 	"control-panel/internal/handler/http"
-	"control-panel/internal/nats"
+	"control-panel/internal/messaging"
 	"control-panel/internal/repository"
 	"control-panel/internal/service"
 	"fmt"
@@ -32,9 +32,9 @@ func main() {
 	}
 
 	// setup NATS publisher
-	natsPublisher, err := nats.NewPublisher(cfg.NatsURL)
+	natsPublisher, err := messaging.NewPublisher(cfg.NatsURL)
 	if err != nil {
-		log.Fatalf("nats connect: %v", err)
+		log.Fatalf("messaging connect: %v", err)
 	}
 
 	// repositories

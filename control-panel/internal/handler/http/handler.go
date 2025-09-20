@@ -3,7 +3,7 @@ package http
 import (
 	"context"
 	"control-panel/internal/helper"
-	"control-panel/internal/nats"
+	"control-panel/internal/messaging"
 	"errors"
 	"net/http"
 
@@ -15,10 +15,10 @@ import (
 type Handler struct {
 	cdnService  service.CdnServiceInterface
 	userService service.UserServiceInterface
-	natsPub     *nats.Publisher
+	natsPub     messaging.MessageBrokerInterface
 }
 
-func NewHTTPHandler(cdnService service.CdnServiceInterface, userService service.UserServiceInterface, natsPub *nats.Publisher) *Handler {
+func NewHTTPHandler(cdnService service.CdnServiceInterface, userService service.UserServiceInterface, natsPub messaging.MessageBrokerInterface) *Handler {
 	return &Handler{
 		cdnService:  cdnService,
 		userService: userService,
