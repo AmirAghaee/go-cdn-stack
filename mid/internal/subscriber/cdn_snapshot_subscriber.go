@@ -24,7 +24,7 @@ func NewCdnSnapshotSubscriber(broker messaging.MessageBrokerInterface, service s
 
 func (s *CdnSnapshotSubscriber) Register() error {
 	return s.broker.Subscribe("cdn.snapshot", func(msg string) {
-		if err := s.service.ProcessSnapshot(msg); err != nil {
+		if err := s.service.ProcessSnapshot(); err != nil {
 			log.Printf("❌ failed processing snapshot: %v", err)
 		}
 	})

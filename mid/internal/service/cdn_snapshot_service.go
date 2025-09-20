@@ -8,7 +8,7 @@ import (
 )
 
 type CdnSnapshotServiceInterface interface {
-	ProcessSnapshot(msg string) error
+	ProcessSnapshot() error
 }
 
 type cdnSnapshotService struct {
@@ -21,8 +21,8 @@ func NewCdnSnapshotService(controlPanelClient client.ControlPanelClientInterface
 	}
 }
 
-func (s *cdnSnapshotService) ProcessSnapshot(msg string) error {
-	fmt.Println("📦 Processing CDN snapshot:", msg)
+func (s *cdnSnapshotService) ProcessSnapshot() error {
+	fmt.Println("📦 Processing CDN snapshot...")
 
 	// Get CDN data from control panel
 	cdns, err := s.controlPanelClient.GetCDNs()
@@ -34,7 +34,7 @@ func (s *cdnSnapshotService) ProcessSnapshot(msg string) error {
 
 	// Process each CDN
 	for _, cdn := range cdns {
-		if err := s.processCDN(cdn, msg); err != nil {
+		if err := s.processCDN(cdn); err != nil {
 			log.Printf("❌ Error processing CDN %s: %v", cdn.ID, err)
 			// Continue processing other CDNs even if one fails
 		}
@@ -43,7 +43,7 @@ func (s *cdnSnapshotService) ProcessSnapshot(msg string) error {
 	return nil
 }
 
-func (s *cdnSnapshotService) processCDN(cdn domain.CDN, snapshotMsg string) error {
+func (s *cdnSnapshotService) processCDN(cdn domain.CDN) error {
 	// Your business logic for processing each CDN goes here
 	fmt.Printf("🌐 Processing CDN: ID=%s, Domain=%s, Origin=%s", cdn.ID, cdn.Domain, cdn.Origin)
 

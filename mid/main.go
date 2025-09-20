@@ -27,6 +27,11 @@ func main() {
 	// setup services
 	cdnSnapshotService := service.NewCdnSnapshotService(controlPanelClient)
 
+	// first time sync with control panel
+	if err := cdnSnapshotService.ProcessSnapshot(); err != nil {
+		panic(err)
+	}
+
 	// setup subscribers
 	cdnSnapshotSub := subscriber.NewCdnSnapshotSubscriber(natsBroker, cdnSnapshotService)
 	if err := cdnSnapshotSub.Register(); err != nil {
