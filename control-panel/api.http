@@ -1,9 +1,9 @@
 ### users list
-GET http://localhost:8090/users
+GET http://localhost:9000/users
 Accept: application/json
 
 ### users create
-POST http://localhost:8090/users
+POST http://localhost:9000/users
 Content-Type: application/json
 
 {
@@ -12,7 +12,7 @@ Content-Type: application/json
 }
 
 ### user login
-POST http://localhost:8090/login
+POST http://localhost:9000/login
 Content-Type: application/json
 
 {
@@ -21,11 +21,11 @@ Content-Type: application/json
 }
 
 ### cdns list
-GET http://localhost:8090/cdns
+GET http://localhost:9000/cdns
 Content-Type: application/json
 
 ### cdn create
-POST http://localhost:8090/cdns
+POST http://localhost:9000/cdns
 Content-Type: application/json
 
 {
@@ -35,7 +35,7 @@ Content-Type: application/json
 }
 
 ### cdn delete
-DELETE http://localhost:8090/cdns/68caa221474affe1e9d178c4
+DELETE http://localhost:9000/cdns/68caa221474affe1e9d178c4
 Content-Type: application/json
 
 ### snapshot
