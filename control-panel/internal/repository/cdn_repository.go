@@ -99,7 +99,7 @@ func (m *CdnRepository) DeleteCDN(ctx context.Context, id string) error {
 
 func (m *CdnRepository) GetCDNByOrigin(ctx context.Context, origin string) (*domain.CDN, error) {
 	var cdn domain.CDN
-	err := m.db.Collection("users").FindOne(ctx, bson.M{"email": origin}).Decode(&cdn)
+	err := m.db.Collection("cdns").FindOne(ctx, bson.M{"origin": origin}).Decode(&cdn)
 	if err != nil {
 		return nil, err
 	}
