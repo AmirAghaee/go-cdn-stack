@@ -42,9 +42,15 @@ func (s *cacheService) CacheRequest(c *gin.Context) {
 		return
 	}
 
-	cacheKey := host + c.Request.URL.Path
+	// Non-GET requests: just proxy
+	if c.Request.Method != http.MethodGet {
+		s.proxyRequest(c, cdn.Origin)
+		return
+	}
 
-	if item, found := s.cacheItemRepository.Get(cacheKey); found {
+	// Cacheable GET requests
+	cacheKey := host + c.Request.URL.Path
+	if item, found := s.cacheItemRepository.Get(cacheKey); found && time.Now().Before(item.ExpiresAt) {
 		s.serveFromFile(c, item)
 		return
 	}
@@ -124,4 +130,35 @@ func (s *cacheService) serveFromFile(c *gin.Context, item *domain.CacheItem) {
 		}
 	}
 	c.Data(http.StatusOK, item.Header.Get("Content-Type"), body)
+}
+
+func (s *cacheService) proxyRequest(c *gin.Context, origin string) {
+	targetURL := origin + c.Request.URL.Path
+
+	req, err := http.NewRequest(c.Request.Method, targetURL, c.Request.Body)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Error creating request: %v", err)
+		return
+	}
+	req.Header = c.Request.Header.Clone()
+	req.Header.Set("X-Forwarded-Host", c.Request.Host)
+	req.Header.Set("X-Forwarded-For", c.ClientIP())
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		c.String(http.StatusBadGateway, "Error forwarding request: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Copy headers back
+	for k, vals := range resp.Header {
+		for _, v := range vals {
+			c.Writer.Header().Add(k, v)
+		}
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), body)
 }
