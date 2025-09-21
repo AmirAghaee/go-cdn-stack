@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -12,6 +13,8 @@ type Config struct {
 	Port            string
 	ControlPanelURL string
 	NatsUrl         string
+	CacheDir        string
+	CleanerInterval time.Duration
 }
 
 func Load() *Config {
@@ -24,6 +27,7 @@ func Load() *Config {
 		ControlPanelURL: "http://localhost:9000",
 		Port:            "8080",
 		NatsUrl:         "nats://localhost:4222",
+		CacheDir:        "./cache",
 	}
 
 	// control panel url
@@ -44,6 +48,16 @@ func Load() *Config {
 	// Load nats url
 	if NatsUrl := os.Getenv("NATS_URL"); NatsUrl != "" {
 		config.NatsUrl = NatsUrl
+	}
+
+	// set cache directory
+	if dir := os.Getenv("CACHE_DIR"); dir != "" {
+		config.CacheDir = dir
+	}
+
+	// set cleaner interval
+	if config.CleanerInterval == 0 {
+		config.CleanerInterval = 60 * time.Second
 	}
 
 	return config
