@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"mid/internal/config"
 	"mid/internal/domain"
 	"os"
@@ -105,7 +106,7 @@ func (r *cacheItemRepository) StartCleaner() {
 					_ = os.Remove(item.FilePath)
 					_ = os.Remove(item.FilePath + ".json")
 					delete(r.cache, key)
-					fmt.Println("Deleted expired cache:", item.FilePath)
+					log.Printf("Deleted expired cache:", item.FilePath)
 				}
 			}
 			r.mutex.Unlock()

@@ -45,6 +45,10 @@ func main() {
 		log.Fatalf("failed to register cdn snapshot subscriber: %v", err)
 	}
 
+	// Load existing cache and start cleaner
+	cacheItemRepository.LoadFromDisk()
+	cacheItemRepository.StartCleaner()
+
 	r := gin.Default()
 	http.RegisterRoutes(r, cacheService)
 
