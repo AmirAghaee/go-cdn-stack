@@ -106,7 +106,7 @@ func (r *cacheItemRepository) StartCleaner() {
 					_ = os.Remove(item.FilePath)
 					_ = os.Remove(item.FilePath + ".json")
 					delete(r.cache, key)
-					log.Printf("Deleted expired cache:", item.FilePath)
+					log.Printf("Deleted expired cache: %s", item.FilePath)
 				}
 			}
 			r.mutex.Unlock()
