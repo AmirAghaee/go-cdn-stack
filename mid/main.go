@@ -7,6 +7,7 @@ import (
 	"mid/internal/config"
 	"mid/internal/handler/http"
 	"mid/internal/messaging"
+	"mid/internal/repository"
 	"mid/internal/service"
 	"mid/internal/subscriber"
 
@@ -25,9 +26,12 @@ func main() {
 	// setup clients
 	controlPanelClient := client.NewControlPanelClient(cfg.ControlPanelURL)
 
+	// setup repository
+	cdnCacheRepository := repository.NewCdnCacheRepository()
+
 	// setup services
-	cdnSnapshotService := service.NewCdnSnapshotService(controlPanelClient)
-	cacheService := service.NewCacheService(cfg)
+	cdnSnapshotService := service.NewCdnSnapshotService(controlPanelClient, cdnCacheRepository)
+	cacheService := service.NewCacheService(cfg, cdnCacheRepository)
 
 	// first time sync with control panel
 	if err := cdnSnapshotService.ProcessSnapshot(); err != nil {

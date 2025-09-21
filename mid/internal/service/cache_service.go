@@ -2,6 +2,7 @@ package service
 
 import (
 	"mid/internal/config"
+	"mid/internal/repository"
 
 	"github.com/gin-gonic/gin"
 )
@@ -11,15 +12,23 @@ type CacheServiceInterface interface {
 }
 
 type CacheService struct {
-	config *config.Config
+	config             *config.Config
+	cdnCacheRepository repository.CdnCacheRepositoryInterface
 }
 
-func NewCacheService(config *config.Config) *CacheService {
+func NewCacheService(config *config.Config, cache repository.CdnCacheRepositoryInterface) *CacheService {
 	return &CacheService{
-		config: config,
+		config:             config,
+		cdnCacheRepository: cache,
 	}
 }
 
 func (s *CacheService) CacheRequest(c *gin.Context) {
 
+	cdns := s.cdnCacheRepository.GetAll()
+
+	// Example: just return CDNs in JSON
+	c.JSON(200, gin.H{
+		"cdns": cdns,
+	})
 }
