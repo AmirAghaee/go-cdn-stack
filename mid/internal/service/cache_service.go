@@ -11,19 +11,19 @@ type CacheServiceInterface interface {
 	CacheRequest(c *gin.Context)
 }
 
-type CacheService struct {
+type cacheService struct {
 	config             *config.Config
 	cdnCacheRepository repository.CdnCacheRepositoryInterface
 }
 
-func NewCacheService(config *config.Config, cache repository.CdnCacheRepositoryInterface) *CacheService {
-	return &CacheService{
+func NewCacheService(config *config.Config, cache repository.CdnCacheRepositoryInterface) CacheServiceInterface {
+	return &cacheService{
 		config:             config,
 		cdnCacheRepository: cache,
 	}
 }
 
-func (s *CacheService) CacheRequest(c *gin.Context) {
+func (s *cacheService) CacheRequest(c *gin.Context) {
 
 	cdns := s.cdnCacheRepository.GetAll()
 
