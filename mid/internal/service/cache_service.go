@@ -1,6 +1,8 @@
 package service
 
 import (
+	"mid/internal/config"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -9,10 +11,13 @@ type CacheServiceInterface interface {
 }
 
 type CacheService struct {
+	config *config.Config
 }
 
-func NewCacheService() *CacheService {
-	return &CacheService{}
+func NewCacheService(config *config.Config) *CacheService {
+	return &CacheService{
+		config: config,
+	}
 }
 
 func (s *CacheService) CacheRequest(c *gin.Context) {

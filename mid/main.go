@@ -27,7 +27,7 @@ func main() {
 
 	// setup services
 	cdnSnapshotService := service.NewCdnSnapshotService(controlPanelClient)
-	cacheService := service.NewCacheService()
+	cacheService := service.NewCacheService(cfg)
 
 	// first time sync with control panel
 	if err := cdnSnapshotService.ProcessSnapshot(); err != nil {

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"mid/internal/client"
-	"mid/internal/domain"
 )
 
 type CdnSnapshotServiceInterface interface {
@@ -33,22 +32,6 @@ func (s *cdnSnapshotService) ProcessSnapshot() error {
 	log.Printf("🔗 Retrieved %d CDNs from control panel", len(cdns))
 
 	// Process each CDN
-	for _, cdn := range cdns {
-		if err := s.processCDN(cdn); err != nil {
-			log.Printf("❌ Error processing CDN %s: %v", cdn.ID, err)
-			// Continue processing other CDNs even if one fails
-		}
-	}
-
-	return nil
-}
-
-func (s *cdnSnapshotService) processCDN(cdn domain.CDN) error {
-	// Your business logic for processing each CDN goes here
-	fmt.Printf("🌐 Processing CDN: ID=%s, Domain=%s, Origin=%s", cdn.ID, cdn.Domain, cdn.Origin)
-
-	// Example: you might want to create snapshots, check health, update status, etc.
-	// This is where you implement your specific business logic
-
+	// cdns list
 	return nil
 }
