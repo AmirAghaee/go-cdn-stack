@@ -5,23 +5,23 @@ import (
 	"sync/atomic"
 )
 
-type CdnCacheRepositoryInterface interface {
+type CdnRepositoryInterface interface {
 	Set([]domain.CDN)
 	GetAll() []domain.CDN
 	GetByDomain(domain string) (domain.CDN, bool)
 }
 
-type cdnCacheRepository struct {
+type cdnRepository struct {
 	data atomic.Value
 }
 
-func NewCdnCacheRepository() CdnCacheRepositoryInterface {
-	repo := &cdnCacheRepository{}
+func NewCdnRepository() CdnRepositoryInterface {
+	repo := &cdnRepository{}
 	repo.data.Store(make(map[string]domain.CDN))
 	return repo
 }
 
-func (c *cdnCacheRepository) Set(cdns []domain.CDN) {
+func (c *cdnRepository) Set(cdns []domain.CDN) {
 	newMap := make(map[string]domain.CDN, len(cdns))
 	for _, cdn := range cdns {
 		newMap[cdn.Domain] = cdn
@@ -29,7 +29,7 @@ func (c *cdnCacheRepository) Set(cdns []domain.CDN) {
 	c.data.Store(newMap)
 }
 
-func (c *cdnCacheRepository) GetAll() []domain.CDN {
+func (c *cdnRepository) GetAll() []domain.CDN {
 	m := c.data.Load().(map[string]domain.CDN)
 	result := make([]domain.CDN, 0, len(m))
 	for _, cdn := range m {
@@ -38,7 +38,7 @@ func (c *cdnCacheRepository) GetAll() []domain.CDN {
 	return result
 }
 
-func (c *cdnCacheRepository) GetByDomain(domainName string) (domain.CDN, bool) {
+func (c *cdnRepository) GetByDomain(domainName string) (domain.CDN, bool) {
 	m := c.data.Load().(map[string]domain.CDN)
 	cdn, ok := m[domainName]
 	return cdn, ok

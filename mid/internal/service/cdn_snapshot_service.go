@@ -13,13 +13,13 @@ type CdnSnapshotServiceInterface interface {
 
 type cdnSnapshotService struct {
 	controlPanelClient client.ControlPanelClientInterface
-	cdnCacheRepository repository.CdnCacheRepositoryInterface
+	cdnRepository      repository.CdnRepositoryInterface
 }
 
-func NewCdnSnapshotService(controlPanelClient client.ControlPanelClientInterface, cache repository.CdnCacheRepositoryInterface) CdnSnapshotServiceInterface {
+func NewCdnSnapshotService(controlPanelClient client.ControlPanelClientInterface, cache repository.CdnRepositoryInterface) CdnSnapshotServiceInterface {
 	return &cdnSnapshotService{
 		controlPanelClient: controlPanelClient,
-		cdnCacheRepository: cache,
+		cdnRepository:      cache,
 	}
 }
 
@@ -32,7 +32,7 @@ func (s *cdnSnapshotService) ProcessSnapshot() error {
 		return fmt.Errorf("failed to get CDNs from control panel: %w", err)
 	}
 
-	s.cdnCacheRepository.Set(cdns)
+	s.cdnRepository.Set(cdns)
 
 	log.Printf("🔗 Retrieved %d CDNs from control panel", len(cdns))
 

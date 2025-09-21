@@ -27,11 +27,11 @@ func main() {
 	controlPanelClient := client.NewControlPanelClient(cfg.ControlPanelURL)
 
 	// setup repository
-	cdnCacheRepository := repository.NewCdnCacheRepository()
+	cdnRepository := repository.NewCdnRepository()
 
 	// setup services
-	cdnSnapshotService := service.NewCdnSnapshotService(controlPanelClient, cdnCacheRepository)
-	cacheService := service.NewCacheService(cfg, cdnCacheRepository)
+	cdnSnapshotService := service.NewCdnSnapshotService(controlPanelClient, cdnRepository)
+	cacheService := service.NewCacheService(cfg, cdnRepository)
 
 	// first time sync with control panel
 	if err := cdnSnapshotService.ProcessSnapshot(); err != nil {
