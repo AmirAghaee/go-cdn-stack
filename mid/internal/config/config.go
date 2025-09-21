@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -15,6 +16,7 @@ type Config struct {
 	NatsUrl         string
 	CacheDir        string
 	CleanerInterval time.Duration
+	CacheTTL        time.Duration
 }
 
 func Load() *Config {
@@ -58,6 +60,16 @@ func Load() *Config {
 	// set cleaner interval
 	if config.CleanerInterval == 0 {
 		config.CleanerInterval = 60 * time.Second
+	}
+
+	// Load TTL
+	if ttlStr := os.Getenv("CACHE_TTL"); ttlStr != "" {
+		if ttl, err := strconv.Atoi(ttlStr); err == nil && ttl > 0 {
+			config.CacheTTL = time.Duration(ttl) * time.Second
+		}
+	}
+	if config.CacheTTL == 0 {
+		config.CacheTTL = 10 * time.Second
 	}
 
 	return config
