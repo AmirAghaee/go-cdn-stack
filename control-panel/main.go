@@ -49,10 +49,6 @@ func main() {
 	r := gin.Default()
 	http.RegisterRoutes(r, cdnService, userService, natsPublisher)
 
-	port := cfg.Port
-	if port == "" {
-		port = "8090"
-	}
-	fmt.Printf("Server running on :%s\n", port)
-	_ = r.Run("127.0.0.1" + ":" + port)
+	fmt.Printf("Server running on :%s\n", cfg.AppUrl)
+	_ = r.Run(cfg.AppUrl)
 }

@@ -7,9 +7,9 @@ import (
 )
 
 type Config struct {
+	AppUrl   string
 	MongoURI string
 	DB       string
-	Port     string
 	NatsURL  string
 }
 
@@ -18,7 +18,7 @@ func Load() *Config {
 
 	uri := os.Getenv("MONGO_URI")
 	db := os.Getenv("MONGO_DB")
-	port := os.Getenv("PORT")
+	appUrl := os.Getenv("APP_URL")
 	natsUrl := os.Getenv("NATS_URL")
 
 	if uri == "" || db == "" {
@@ -28,7 +28,7 @@ func Load() *Config {
 	return &Config{
 		MongoURI: uri,
 		DB:       db,
-		Port:     port,
+		AppUrl:   appUrl,
 		NatsURL:  natsUrl,
 	}
 }
