@@ -11,7 +11,7 @@ import (
 
 type Config struct {
 	GinMode         string
-	Port            string
+	AppUrl          string
 	ControlPanelURL string
 	NatsUrl         string
 	CacheDir        string
@@ -27,7 +27,7 @@ func Load() *Config {
 	config := &Config{
 		GinMode:         "debug",
 		ControlPanelURL: "http://localhost:9000",
-		Port:            "8080",
+		AppUrl:          "127.0.0.1:9050",
 		NatsUrl:         "nats://localhost:4222",
 		CacheDir:        "./cache",
 	}
@@ -43,8 +43,8 @@ func Load() *Config {
 	}
 
 	// Load app port
-	if Port := os.Getenv("PORT"); Port != "" {
-		config.Port = Port
+	if appUrl := os.Getenv("APP_URL"); appUrl != "" {
+		config.AppUrl = appUrl
 	}
 
 	// Load nats url

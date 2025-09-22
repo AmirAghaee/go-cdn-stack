@@ -52,6 +52,6 @@ func main() {
 	r := gin.Default()
 	http.RegisterRoutes(r, cacheService)
 
-	fmt.Printf("Server running on :%s\n", cfg.Port)
-	_ = r.Run(":" + cfg.Port)
+	fmt.Printf("Server running on :%s\n", cfg.AppUrl)
+	_ = r.Run(cfg.AppUrl)
 }

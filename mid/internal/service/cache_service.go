@@ -56,10 +56,10 @@ func (s *cacheService) CacheRequest(c *gin.Context) {
 		return
 	}
 
-	s.fetchAndCache(c, cdn.Origin, cacheKey)
+	s.fetchAndCache(c, cdn.Origin, cacheKey, cdn.CacheTTL)
 }
 
-func (s *cacheService) fetchAndCache(c *gin.Context, origin, cacheKey string) {
+func (s *cacheService) fetchAndCache(c *gin.Context, origin, cacheKey string, cacheTTL uint) {
 	targetURL := origin + c.Request.URL.Path
 
 	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
@@ -114,7 +114,7 @@ func (s *cacheService) fetchAndCache(c *gin.Context, origin, cacheKey string) {
 	item := &domain.CacheItem{
 		FilePath:  cacheFile,
 		Header:    resp.Header.Clone(),
-		ExpiresAt: time.Now().Add(s.config.CacheTTL),
+		ExpiresAt: time.Now().Add(time.Duration(cacheTTL) * time.Second),
 	}
 	metaFileName := cacheFile + ".json"
 	if metaJSON, err := json.MarshalIndent(item, "", "  "); err == nil {

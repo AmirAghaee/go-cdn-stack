@@ -4,7 +4,6 @@ import (
 	"context"
 	"control-panel/internal/domain"
 	"errors"
-	"fmt"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -41,8 +40,6 @@ func (m *CdnRepository) ListCDNs(ctx context.Context) ([]*domain.CDN, error) {
 		return nil, err
 	}
 	defer cur.Close(ctx)
-
-	fmt.Println(cur)
 
 	var out []*domain.CDN
 	for cur.Next(ctx) {
