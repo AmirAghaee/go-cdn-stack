@@ -10,6 +10,7 @@ type CDN struct {
 	Domain   string `json:"domain"`
 	Origin   string `json:"origin"`
 	IsActive bool   `json:"is_active"`
+	CacheTTL uint   `json:"cache_ttl"`
 }
 
 type CacheItem struct {

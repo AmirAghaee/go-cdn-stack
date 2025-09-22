@@ -8,7 +8,7 @@ import (
 )
 
 type CdnServiceInterface interface {
-	Create(ctx context.Context, origin, domain string, isActive bool) error
+	Create(ctx context.Context, origin, domain string, isActive bool, CacheTTL uint) error
 	List(ctx context.Context) ([]*domain.CDN, error)
 	Get(ctx context.Context, id string) (*domain.CDN, error)
 	Update(ctx context.Context, id, origin, domain string, isActive bool) error
@@ -26,12 +26,12 @@ func NewCdnService(r repository.CdnRepositoryInterface) *CdnService {
 	}
 }
 
-func (c *CdnService) Create(ctx context.Context, origin string, domainName string, isActive bool) error {
+func (c *CdnService) Create(ctx context.Context, origin string, domainName string, isActive bool, CacheTTL uint) error {
 	_, err := c.repo.GetCDNByOrigin(ctx, origin)
 	if err == nil {
 		return helper.ErrCdnExists()
 	}
-	cdn := &domain.CDN{Origin: origin, Domain: domainName, IsActive: isActive}
+	cdn := &domain.CDN{Origin: origin, Domain: domainName, IsActive: isActive, CacheTTL: CacheTTL}
 	return c.repo.CreateCDN(ctx, cdn)
 }
 

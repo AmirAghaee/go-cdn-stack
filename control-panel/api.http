@@ -31,6 +31,7 @@ Content-Type: application/json
 {
   "origin": "localhost:8082",
   "domain": "example.com",
+  "cache_ttl": 60,
   "is_active": true
 }
 

@@ -54,5 +54,5 @@ func main() {
 		port = "8090"
 	}
 	fmt.Printf("Server running on :%s\n", port)
-	_ = r.Run(":" + port)
+	_ = r.Run("127.0.0.1" + ":" + port)
 }

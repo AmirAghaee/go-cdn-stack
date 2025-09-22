@@ -31,6 +31,7 @@ func (h *CdnHandler) createCDN(c *gin.Context) {
 		Origin   string `json:"origin" binding:"required,url"`
 		Domain   string `json:"domain" binding:"required"`
 		IsActive bool   `json:"is_active"`
+		CacheTTL uint   `json:"cache_ttl"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		sErr := helper.ErrInvalidInput()
@@ -38,7 +39,7 @@ func (h *CdnHandler) createCDN(c *gin.Context) {
 		return
 	}
 
-	if err := h.cdnService.Create(context.Background(), body.Origin, body.Domain, body.IsActive); err != nil {
+	if err := h.cdnService.Create(context.Background(), body.Origin, body.Domain, body.IsActive, body.CacheTTL); err != nil {
 		var sErr *helper.ServiceError
 		if errors.As(err, &sErr) {
 			c.JSON(sErr.Code, gin.H{"error": sErr.Message})
@@ -73,6 +74,7 @@ func (h *CdnHandler) updateCDN(c *gin.Context) {
 		Origin   string `json:"origin" binding:"required,url"`
 		Domain   string `json:"domain" binding:"required"`
 		IsActive bool   `json:"is_active"`
+		CacheTTL uint   `json:"cache_ttl"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

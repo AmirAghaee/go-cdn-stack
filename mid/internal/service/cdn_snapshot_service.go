@@ -32,6 +32,7 @@ func (s *cdnSnapshotService) ProcessSnapshot() error {
 		return fmt.Errorf("failed to get CDNs from control panel: %w", err)
 	}
 
+	fmt.Println("CDNs:", cdns)
 	s.cdnRepository.Set(cdns)
 
 	log.Printf("🔗 Retrieved %d CDNs from control panel", len(cdns))

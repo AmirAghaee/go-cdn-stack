@@ -4,6 +4,7 @@ import (
 	"context"
 	"control-panel/internal/domain"
 	"errors"
+	"fmt"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -41,6 +42,8 @@ func (m *CdnRepository) ListCDNs(ctx context.Context) ([]*domain.CDN, error) {
 	}
 	defer cur.Close(ctx)
 
+	fmt.Println(cur)
+
 	var out []*domain.CDN
 	for cur.Next(ctx) {
 		var c domain.CDN
@@ -77,6 +80,7 @@ func (m *CdnRepository) UpdateCDN(ctx context.Context, id string, c *domain.CDN)
 			"origin":    c.Origin,
 			"domain":    c.Domain,
 			"is_active": c.IsActive,
+			"cache_ttl": c.CacheTTL,
 		}},
 	)
 	return err
