@@ -7,6 +7,7 @@ import (
 	"control-panel/internal/messaging"
 	"control-panel/internal/repository"
 	"control-panel/internal/service"
+	"control-panel/internal/subscriber"
 	"fmt"
 	"log"
 	"time"
@@ -32,7 +33,7 @@ func main() {
 	}
 
 	// setup NATS publisher
-	natsPublisher, err := messaging.NewPublisher(cfg.NatsURL)
+	natsBroker, err := messaging.NewNatsBroker(cfg.NatsURL)
 	if err != nil {
 		log.Fatalf("messaging connect: %v", err)
 	}
@@ -40,14 +41,21 @@ func main() {
 	// repositories
 	userRepo := repository.NewUserRepository(client, cfg.DB)
 	cdnRepo := repository.NewCdnRepository(client, cfg.DB)
+	healthRepo := repository.NewHealthRepository(client, cfg.DB)
 
 	// services
 	userService := service.NewUserService(userRepo)
 	cdnService := service.NewCdnService(cdnRepo)
 
+	// subscribe to health events
+	healthSub := subscriber.NewHealthSubscriber(natsBroker, healthRepo)
+	if err := healthSub.Register(); err != nil {
+		log.Fatalf("failed to register health subscriber: %v", err)
+	}
+
 	// http handler
 	r := gin.Default()
-	http.RegisterRoutes(r, cdnService, userService, natsPublisher)
+	http.RegisterRoutes(r, cdnService, userService, natsBroker)
 
 	fmt.Printf("Server running on :%s\n", cfg.AppUrl)
 	_ = r.Run(cfg.AppUrl)
