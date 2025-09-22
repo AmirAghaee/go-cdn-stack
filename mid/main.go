@@ -14,6 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const AppVersion = "v1.0.0"
+
 func main() {
 	cfg := config.Load()
 
@@ -22,6 +24,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("messaging connect: %v", err)
 	}
+
+	// setup health publisher
+	healthService := service.NewHealthService(natsBroker, cfg.AppName, cfg.AppUrl, AppVersion)
+	stopChan := make(chan struct{})
+	go healthService.Start(stopChan)
+	defer close(stopChan)
 
 	// setup clients
 	controlPanelClient := client.NewControlPanelClient(cfg.ControlPanelURL)

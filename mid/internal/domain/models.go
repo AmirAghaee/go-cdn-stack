@@ -18,3 +18,11 @@ type CacheItem struct {
 	Header    http.Header `json:"header"`
 	ExpiresAt time.Time   `json:"expires_at"`
 }
+
+type HealthStatus struct {
+	Service   string    `json:"service"`
+	Instance  string    `json:"instance"`
+	Status    string    `json:"status"`
+	Timestamp time.Time `json:"timestamp"`
+	Version   string    `json:"version"`
+}

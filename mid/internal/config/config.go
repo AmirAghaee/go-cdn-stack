@@ -12,6 +12,7 @@ import (
 type Config struct {
 	GinMode         string
 	AppUrl          string
+	AppName         string
 	ControlPanelURL string
 	NatsUrl         string
 	CacheDir        string
@@ -70,6 +71,11 @@ func Load() *Config {
 	}
 	if config.CacheTTL == 0 {
 		config.CacheTTL = 10 * time.Second
+	}
+
+	// set app name
+	if appName := os.Getenv("APP_NAME"); appName != "" {
+		config.AppName = appName
 	}
 
 	return config
