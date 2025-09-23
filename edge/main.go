@@ -43,8 +43,8 @@ func main() {
 	r.HEAD("/*path", httpHandler.HandleProxyRequest)
 	r.OPTIONS("/*path", httpHandler.HandleProxyRequest)
 
-	fmt.Printf("Edge service running on %s\n", cfg.Port)
-	if err := r.Run(cfg.Port); err != nil {
+	fmt.Printf("Edge service running on %s\n", cfg.AppUrl)
+	if err := r.Run(cfg.AppUrl); err != nil {
 		panic(err)
 	}
 }

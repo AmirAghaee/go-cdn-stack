@@ -15,7 +15,7 @@ type Config struct {
 	CacheDir        string
 	MetadataExt     string
 	CleanerInterval time.Duration
-	Port            string
+	AppUrl          string
 	Origins         map[string]string
 }
 
@@ -28,7 +28,7 @@ func Load() *Config {
 		GinMode:     "debug",
 		CacheDir:    "./cache",
 		MetadataExt: ".json",
-		Port:        ":8080",
+		AppUrl:      "127.0.0.1:8080",
 		Origins: map[string]string{
 			"example.com": "http://localhost:8081",
 			"test.com":    "http://localhost:8082",
@@ -68,6 +68,11 @@ func Load() *Config {
 	// Load gin mode
 	if ginMode := os.Getenv("APP_MODE"); ginMode != "" {
 		config.GinMode = ginMode
+	}
+
+	// Load gin mode
+	if appUrl := os.Getenv("APP_URL"); appUrl != "" {
+		config.AppUrl = appUrl
 	}
 
 	return config
