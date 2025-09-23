@@ -1,4 +1,4 @@
-module pkg
+module github.com/AmirAghaee/go-cdn-stack/pkg
 
 go 1.25
 
