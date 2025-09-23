@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/domain"
-	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/messaging"
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/repository"
+	"github.com/AmirAghaee/go-cdn-stack/pkg/messaging"
 )
 
 type HealthSubscriberInterface interface {

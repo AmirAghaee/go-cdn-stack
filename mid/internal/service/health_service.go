@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/AmirAghaee/go-cdn-stack/mid/internal/domain"
-	"github.com/AmirAghaee/go-cdn-stack/mid/internal/messaging"
+	"github.com/AmirAghaee/go-cdn-stack/pkg/messaging"
 )
 
 type HealthServiceInterface interface {

@@ -8,10 +8,10 @@ import (
 
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/config"
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/handler/http"
-	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/messaging"
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/repository"
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/service"
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/subscriber"
+	"github.com/AmirAghaee/go-cdn-stack/pkg/messaging"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/mongo"

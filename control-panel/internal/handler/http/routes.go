@@ -1,8 +1,8 @@
 package http
 
 import (
-	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/messaging"
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/service"
+	"github.com/AmirAghaee/go-cdn-stack/pkg/messaging"
 
 	"github.com/gin-gonic/gin"
 )

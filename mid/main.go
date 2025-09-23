@@ -7,10 +7,10 @@ import (
 	"github.com/AmirAghaee/go-cdn-stack/mid/internal/client"
 	"github.com/AmirAghaee/go-cdn-stack/mid/internal/config"
 	"github.com/AmirAghaee/go-cdn-stack/mid/internal/handler/http"
-	"github.com/AmirAghaee/go-cdn-stack/mid/internal/messaging"
 	"github.com/AmirAghaee/go-cdn-stack/mid/internal/repository"
 	"github.com/AmirAghaee/go-cdn-stack/mid/internal/service"
 	"github.com/AmirAghaee/go-cdn-stack/mid/internal/subscriber"
+	"github.com/AmirAghaee/go-cdn-stack/pkg/messaging"
 
 	"github.com/gin-gonic/gin"
 )

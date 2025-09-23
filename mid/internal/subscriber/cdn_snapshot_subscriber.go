@@ -3,8 +3,8 @@ package subscriber
 import (
 	"log"
 
-	"github.com/AmirAghaee/go-cdn-stack/mid/internal/messaging"
 	"github.com/AmirAghaee/go-cdn-stack/mid/internal/service"
+	"github.com/AmirAghaee/go-cdn-stack/pkg/messaging"
 )
 
 type CdnSnapshotSubscriberInterface interface {
