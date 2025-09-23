@@ -1,9 +1,6 @@
 package service
 
 import (
-	"edge/internal/config"
-	"edge/internal/domain"
-	"edge/internal/repository"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/AmirAghaee/go-cdn-stack/edge/internal/config"
+	"github.com/AmirAghaee/go-cdn-stack/edge/internal/domain"
+	"github.com/AmirAghaee/go-cdn-stack/edge/internal/repository"
 
 	"github.com/gin-gonic/gin"
 )

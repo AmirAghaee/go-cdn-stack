@@ -3,9 +3,10 @@ package service
 import (
 	"encoding/json"
 	"log"
-	"mid/internal/domain"
-	"mid/internal/messaging"
 	"time"
+
+	"github.com/AmirAghaee/go-cdn-stack/mid/internal/domain"
+	"github.com/AmirAghaee/go-cdn-stack/mid/internal/messaging"
 )
 
 type HealthServiceInterface interface {

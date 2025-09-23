@@ -1,7 +1,7 @@
 package http
 
 import (
-	"mid/internal/service"
+	"github.com/AmirAghaee/go-cdn-stack/mid/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

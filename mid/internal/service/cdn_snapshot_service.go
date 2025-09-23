@@ -3,8 +3,9 @@ package service
 import (
 	"fmt"
 	"log"
-	"mid/internal/client"
-	"mid/internal/repository"
+
+	"github.com/AmirAghaee/go-cdn-stack/mid/internal/client"
+	"github.com/AmirAghaee/go-cdn-stack/mid/internal/repository"
 )
 
 type CdnSnapshotServiceInterface interface {

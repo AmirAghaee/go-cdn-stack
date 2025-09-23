@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"edge/internal/service"
+	"github.com/AmirAghaee/go-cdn-stack/edge/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

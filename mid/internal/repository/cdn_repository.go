@@ -1,8 +1,9 @@
 package repository
 
 import (
-	"mid/internal/domain"
 	"sync/atomic"
+
+	"github.com/AmirAghaee/go-cdn-stack/mid/internal/domain"
 )
 
 type CdnRepositoryInterface interface {

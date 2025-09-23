@@ -2,15 +2,16 @@ package main
 
 import (
 	"context"
-	"control-panel/internal/config"
-	"control-panel/internal/handler/http"
-	"control-panel/internal/messaging"
-	"control-panel/internal/repository"
-	"control-panel/internal/service"
-	"control-panel/internal/subscriber"
 	"fmt"
 	"log"
 	"time"
+
+	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/config"
+	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/handler/http"
+	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/messaging"
+	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/repository"
+	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/service"
+	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/subscriber"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/mongo"

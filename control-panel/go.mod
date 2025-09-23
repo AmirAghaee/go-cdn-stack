@@ -1,4 +1,4 @@
-module control-panel
+module github.com/AmirAghaee/go-cdn-stack/control-panel
 
 go 1.25.1
 

@@ -1,6 +1,6 @@
 package repository
 
-import "edge/internal/domain"
+import "github.com/AmirAghaee/go-cdn-stack/edge/internal/domain"
 
 type CacheRepository interface {
 	Get(key string) (*domain.CacheItem, bool)

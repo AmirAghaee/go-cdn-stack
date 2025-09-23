@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"mid/internal/domain"
 	"net/http"
 	"time"
+
+	"github.com/AmirAghaee/go-cdn-stack/mid/internal/domain"
 )
 
 type ControlPanelClientInterface interface {

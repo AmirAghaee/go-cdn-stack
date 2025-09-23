@@ -2,8 +2,9 @@ package subscriber
 
 import (
 	"log"
-	"mid/internal/messaging"
-	"mid/internal/service"
+
+	"github.com/AmirAghaee/go-cdn-stack/mid/internal/messaging"
+	"github.com/AmirAghaee/go-cdn-stack/mid/internal/service"
 )
 
 type CdnSnapshotSubscriberInterface interface {

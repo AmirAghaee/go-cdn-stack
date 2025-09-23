@@ -2,10 +2,11 @@ package service
 
 import (
 	"context"
-	"control-panel/internal/domain"
-	"control-panel/internal/helper"
-	"control-panel/internal/repository"
 	"errors"
+
+	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/domain"
+	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/helper"
+	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/repository"
 
 	"golang.org/x/crypto/bcrypt"
 )

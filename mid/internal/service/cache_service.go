@@ -4,14 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"mid/internal/config"
-	"mid/internal/domain"
-	"mid/internal/repository"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/AmirAghaee/go-cdn-stack/mid/internal/config"
+	"github.com/AmirAghaee/go-cdn-stack/mid/internal/domain"
+	"github.com/AmirAghaee/go-cdn-stack/mid/internal/repository"
 
 	"github.com/gin-gonic/gin"
 )

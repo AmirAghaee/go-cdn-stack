@@ -1,4 +1,4 @@
-module edge
+module github.com/AmirAghaee/go-cdn-stack/edge
 
 go 1.25
 

@@ -2,10 +2,11 @@ package http
 
 import (
 	"context"
-	"control-panel/internal/helper"
-	"control-panel/internal/service"
 	"errors"
 	"net/http"
+
+	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/helper"
+	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

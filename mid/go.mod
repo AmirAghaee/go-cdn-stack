@@ -1,4 +1,4 @@
-module mid
+module github.com/AmirAghaee/go-cdn-stack/mid
 
 go 1.25.1
 

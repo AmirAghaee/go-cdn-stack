@@ -2,12 +2,13 @@ package subscriber
 
 import (
 	"context"
-	"control-panel/internal/domain"
-	"control-panel/internal/messaging"
-	"control-panel/internal/repository"
 	"encoding/json"
 	"log"
 	"time"
+
+	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/domain"
+	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/messaging"
+	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/repository"
 )
 
 type HealthSubscriberInterface interface {

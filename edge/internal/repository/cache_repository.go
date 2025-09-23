@@ -1,8 +1,6 @@
 package repository
 
 import (
-	"edge/internal/config"
-	"edge/internal/domain"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -11,6 +9,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/AmirAghaee/go-cdn-stack/edge/internal/config"
+	"github.com/AmirAghaee/go-cdn-stack/edge/internal/domain"
 )
 
 type InMemoryCache struct {

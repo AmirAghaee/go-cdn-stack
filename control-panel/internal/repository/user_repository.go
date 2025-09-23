@@ -2,8 +2,9 @@ package repository
 
 import (
 	"context"
-	"control-panel/internal/domain"
 	"errors"
+
+	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/domain"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"

@@ -1,12 +1,13 @@
 package main
 
 import (
-	"edge/internal/config"
-	"edge/internal/handler"
-	"edge/internal/repository"
-	"edge/internal/service"
 	"fmt"
 	"os"
+
+	"github.com/AmirAghaee/go-cdn-stack/edge/internal/config"
+	"github.com/AmirAghaee/go-cdn-stack/edge/internal/handler"
+	"github.com/AmirAghaee/go-cdn-stack/edge/internal/repository"
+	"github.com/AmirAghaee/go-cdn-stack/edge/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
