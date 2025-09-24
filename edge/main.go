@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/AmirAghaee/go-cdn-stack/edge/internal/client"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/config"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/handler"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/repository"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+const AppVersion = "v1.0.0"
 
 func main() {
 	// Load configuration
@@ -21,6 +24,9 @@ func main() {
 		panic(err)
 	}
 
+	// setup clients
+	midClient := client.NewMidClient(cfg.MidInternalUrl)
+
 	// Initialize dependencies
 	cacheRepo := repository.NewInMemoryCache(cfg)
 	edgeService := service.NewEdgeService(cacheRepo, cfg)
@@ -29,6 +35,10 @@ func main() {
 	// Load existing cache and start cleaner
 	cacheRepo.LoadFromDisk()
 	cacheRepo.StartCleaner()
+
+	//  setup services
+	midService := service.NewMidService(midClient, cfg, cfg.AppName, cfg.AppUrl, AppVersion)
+	midService.StartSubmitHeartbeat()
 
 	// Setup HTTP server
 	gin.SetMode(cfg.GinMode)

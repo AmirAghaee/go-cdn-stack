@@ -10,6 +10,7 @@ import (
 )
 
 type Config struct {
+	AppName         string
 	GinMode         string
 	CacheTTL        time.Duration
 	CacheDir        string
@@ -27,12 +28,13 @@ func Load() *Config {
 	}
 
 	config := &Config{
+		AppName:        "EDGE01",
 		GinMode:        "debug",
 		CacheDir:       "./cache",
 		MetadataExt:    ".json",
 		AppUrl:         "127.0.0.1:8080",
-		MidInternalUrl: "127.0.0.1:9050",
-		MidCacheUrl:    "127.0.0.1:9060",
+		MidCacheUrl:    "127.0.0.1:9050",
+		MidInternalUrl: "127.0.0.1:9060",
 		Origins: map[string]string{
 			"example.com": "http://localhost:8081",
 			"test.com":    "http://localhost:8082",
@@ -85,6 +87,11 @@ func Load() *Config {
 	}
 	if midCacheUrl := os.Getenv("MID_CACHE_URL"); midCacheUrl != "" {
 		config.MidCacheUrl = midCacheUrl
+	}
+
+	// load app name
+	if appName := os.Getenv("APP_NAME"); appName != "" {
+		config.AppName = appName
 	}
 
 	return config
