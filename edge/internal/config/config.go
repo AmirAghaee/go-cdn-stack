@@ -16,6 +16,8 @@ type Config struct {
 	MetadataExt     string
 	CleanerInterval time.Duration
 	AppUrl          string
+	MidCacheUrl     string
+	MidInternalUrl  string
 	Origins         map[string]string
 }
 
@@ -25,10 +27,12 @@ func Load() *Config {
 	}
 
 	config := &Config{
-		GinMode:     "debug",
-		CacheDir:    "./cache",
-		MetadataExt: ".json",
-		AppUrl:      "127.0.0.1:8080",
+		GinMode:        "debug",
+		CacheDir:       "./cache",
+		MetadataExt:    ".json",
+		AppUrl:         "127.0.0.1:8080",
+		MidInternalUrl: "127.0.0.1:9050",
+		MidCacheUrl:    "127.0.0.1:9060",
 		Origins: map[string]string{
 			"example.com": "http://localhost:8081",
 			"test.com":    "http://localhost:8082",
@@ -73,6 +77,14 @@ func Load() *Config {
 	// Load gin mode
 	if appUrl := os.Getenv("APP_URL"); appUrl != "" {
 		config.AppUrl = appUrl
+	}
+
+	// Load mid url
+	if midInternalUrl := os.Getenv("MID_INTERNAL_URL"); midInternalUrl != "" {
+		config.MidInternalUrl = midInternalUrl
+	}
+	if midCacheUrl := os.Getenv("MID_CACHE_URL"); midCacheUrl != "" {
+		config.MidCacheUrl = midCacheUrl
 	}
 
 	return config
