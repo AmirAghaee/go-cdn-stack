@@ -27,7 +27,7 @@ func main() {
 	}
 
 	// setup health publisher
-	healthService := service.NewHealthService(natsBroker, cfg.AppName, cfg.AppUrl, AppVersion)
+	healthService := service.NewHealthService(natsBroker, cfg.AppName, cfg.AppCacheUrl, AppVersion)
 	stopChan := make(chan struct{})
 	go healthService.Start(stopChan)
 	defer close(stopChan)
@@ -58,9 +58,24 @@ func main() {
 	cacheItemRepository.LoadFromDisk()
 	cacheItemRepository.StartCleaner()
 
-	r := gin.Default()
-	http.RegisterRoutes(r, cacheService)
+	go startInternalPort(cfg)
 
-	fmt.Printf("Server running on :%s\n", cfg.AppUrl)
-	_ = r.Run(cfg.AppUrl)
+	r := gin.Default()
+	http.RegisterCacheRoutes(r, cacheService)
+
+	fmt.Printf("Server running on :%s\n", cfg.AppCacheUrl)
+	_ = r.Run(cfg.AppCacheUrl)
+}
+
+func startInternalPort(cfg *config.Config) {
+	edgeRepository := repository.NewEdgeRepository()
+	edgeService := service.NewEdgeService(edgeRepository)
+
+	r := gin.Default()
+	http.RegisterInternalRoutes(r, edgeService)
+
+	fmt.Printf("Internal Edge API running on %s\n", cfg.AppInternalUrl)
+	if err := r.Run(cfg.AppInternalUrl); err != nil {
+		log.Fatalf("internal server failed: %v", err)
+	}
 }

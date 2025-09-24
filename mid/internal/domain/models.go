@@ -26,3 +26,11 @@ type HealthStatus struct {
 	Timestamp time.Time `json:"timestamp"`
 	Version   string    `json:"version"`
 }
+
+type Edge struct {
+	Service   string    `json:"service"`
+	Instance  string    `json:"instance"`
+	Status    string    `json:"status"`
+	Timestamp time.Time `json:"timestamp"`
+	Version   string    `json:"version"`
+}

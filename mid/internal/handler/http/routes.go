@@ -6,6 +6,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, cacheSvc service.CacheServiceInterface) {
+func RegisterCacheRoutes(r *gin.Engine, cacheSvc service.CacheServiceInterface) {
 	NewCacheHandler(cacheSvc).Register(r)
+}
+
+func RegisterInternalRoutes(r *gin.Engine, cacheSvc service.EdgeServiceInterface) {
+	NewEdgeHandler(cacheSvc).Register(r)
 }
