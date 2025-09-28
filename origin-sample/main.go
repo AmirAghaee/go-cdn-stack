@@ -13,7 +13,7 @@ func main() {
 	http.Handle("/", loggingMiddleware(fs))
 
 	fmt.Println("Origin server running on :8081")
-	err := http.ListenAndServe(":8081", nil)
+	err := http.ListenAndServe("127.0.0.1:8081", nil)
 	if err != nil {
 		panic(err)
 	}

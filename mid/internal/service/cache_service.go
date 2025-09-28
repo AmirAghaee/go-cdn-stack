@@ -37,7 +37,11 @@ func NewCacheService(config *config.Config, cdnRepo repository.CdnRepositoryInte
 
 func (s *cacheService) CacheRequest(c *gin.Context) {
 
-	host := c.Request.Host
+	host := c.Request.Header.Get("X-Original-Host")
+	if host == "" {
+		host = c.Request.Host
+	}
+
 	cdn, ok := s.cdnRepository.GetByDomain(host)
 	if !ok {
 		c.String(http.StatusBadGateway, "Unknown host: %s", host)
@@ -57,11 +61,11 @@ func (s *cacheService) CacheRequest(c *gin.Context) {
 		return
 	}
 
-	s.fetchAndCache(c, cdn.Origin, cacheKey, cdn.CacheTTL)
+	s.fetchAndCache(c, cdn, cacheKey)
 }
 
-func (s *cacheService) fetchAndCache(c *gin.Context, origin, cacheKey string, cacheTTL uint) {
-	targetURL := origin + c.Request.URL.Path
+func (s *cacheService) fetchAndCache(c *gin.Context, cdn domain.CDN, cacheKey string) {
+	targetURL := cdn.Origin + c.Request.URL.Path
 
 	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
 	if err != nil {
@@ -115,7 +119,7 @@ func (s *cacheService) fetchAndCache(c *gin.Context, origin, cacheKey string, ca
 	item := &domain.CacheItem{
 		FilePath:  cacheFile,
 		Header:    resp.Header.Clone(),
-		ExpiresAt: time.Now().Add(time.Duration(cacheTTL) * time.Second),
+		ExpiresAt: time.Now().Add(time.Duration(cdn.CacheTTL) * time.Second),
 	}
 	metaFileName := cacheFile + ".json"
 	if metaJSON, err := json.MarshalIndent(item, "", "  "); err == nil {

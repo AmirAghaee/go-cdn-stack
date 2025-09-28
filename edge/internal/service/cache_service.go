@@ -56,11 +56,11 @@ func (s *cacheService) CacheRequest(c *gin.Context) {
 		return
 	}
 
-	s.fetchAndCache(c, cdn.Origin, cacheKey, cdn.CacheTTL)
+	s.fetchAndCache(c, cdn, cacheKey)
 }
 
-func (s *cacheService) fetchAndCache(c *gin.Context, origin, cacheKey string, cacheTTL uint) {
-	targetURL := origin + c.Request.URL.Path
+func (s *cacheService) fetchAndCache(c *gin.Context, cdn domain.CDN, cacheKey string) {
+	targetURL := "http://" + s.config.MidCacheUrl + c.Request.URL.Path
 
 	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
 	if err != nil {
@@ -69,6 +69,7 @@ func (s *cacheService) fetchAndCache(c *gin.Context, origin, cacheKey string, ca
 	}
 
 	// Add headers
+	req.Header.Set("X-Original-Host", cdn.Domain)
 	req.Header.Set("X-Forwarded-Host", c.Request.Host)
 	req.Header.Set("X-Forwarded-For", c.ClientIP())
 
@@ -114,7 +115,7 @@ func (s *cacheService) fetchAndCache(c *gin.Context, origin, cacheKey string, ca
 	item := &domain.CacheItem{
 		FilePath:  cacheFile,
 		Header:    resp.Header.Clone(),
-		ExpiresAt: time.Now().Add(time.Duration(cacheTTL) * time.Second),
+		ExpiresAt: time.Now().Add(time.Duration(cdn.CacheTTL) * time.Second),
 	}
 	metaFileName := cacheFile + ".json"
 	if metaJSON, err := json.MarshalIndent(item, "", "  "); err == nil {
