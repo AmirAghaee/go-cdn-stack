@@ -31,7 +31,6 @@ func Load() *Config {
 		AppName:        "EDGE01",
 		GinMode:        "debug",
 		CacheDir:       "./cache",
-		MetadataExt:    ".json",
 		AppUrl:         "127.0.0.1:8080",
 		MidCacheUrl:    "127.0.0.1:9050",
 		MidInternalUrl: "127.0.0.1:9060",
@@ -50,11 +49,6 @@ func Load() *Config {
 	// Load cache dir
 	if dir := os.Getenv("CACHE_DIR"); dir != "" {
 		config.CacheDir = dir
-	}
-
-	// Load metadata extension
-	if ext := os.Getenv("CACHE_METADATA_EXT"); ext != "" {
-		config.MetadataExt = ext
 	}
 
 	// Load cleaner interval
