@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,20 +15,28 @@ import (
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/domain"
 )
 
-type InMemoryCache struct {
+type CacheItemRepositoryInterface interface {
+	Get(key string) (*domain.CacheItem, bool)
+	Set(key string, item *domain.CacheItem)
+	Delete(key string)
+	LoadFromDisk()
+	StartCleaner()
+}
+
+type cacheItemRepository struct {
 	cache  map[string]*domain.CacheItem
 	mutex  sync.RWMutex
 	config *config.Config
 }
 
-func NewInMemoryCache(config *config.Config) CacheRepository {
-	return &InMemoryCache{
+func NewCacheItemRepository(config *config.Config) CacheItemRepositoryInterface {
+	return &cacheItemRepository{
 		cache:  make(map[string]*domain.CacheItem),
 		config: config,
 	}
 }
 
-func (r *InMemoryCache) Get(key string) (*domain.CacheItem, bool) {
+func (r *cacheItemRepository) Get(key string) (*domain.CacheItem, bool) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
@@ -38,19 +47,19 @@ func (r *InMemoryCache) Get(key string) (*domain.CacheItem, bool) {
 	return item, true
 }
 
-func (r *InMemoryCache) Set(key string, item *domain.CacheItem) {
+func (r *cacheItemRepository) Set(key string, item *domain.CacheItem) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	r.cache[key] = item
 }
 
-func (r *InMemoryCache) Delete(key string) {
+func (r *cacheItemRepository) Delete(key string) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	delete(r.cache, key)
 }
 
-func (r *InMemoryCache) LoadFromDisk() {
+func (r *cacheItemRepository) LoadFromDisk() {
 	files, err := os.ReadDir(r.config.CacheDir)
 	if err != nil {
 		fmt.Println("Error reading cache dir:", err)
@@ -85,7 +94,7 @@ func (r *InMemoryCache) LoadFromDisk() {
 	fmt.Printf("Loaded %d cache items from disk\n", count)
 }
 
-func (r *InMemoryCache) StartCleaner() {
+func (r *cacheItemRepository) StartCleaner() {
 	go func() {
 		ticker := time.NewTicker(r.config.CleanerInterval)
 		defer ticker.Stop()
@@ -96,9 +105,9 @@ func (r *InMemoryCache) StartCleaner() {
 			for key, item := range r.cache {
 				if now.After(item.ExpiresAt) {
 					_ = os.Remove(item.FilePath)
-					_ = os.Remove(item.FilePath + r.config.MetadataExt)
+					_ = os.Remove(item.FilePath + ".json")
 					delete(r.cache, key)
-					fmt.Println("Deleted expired cache:", item.FilePath)
+					log.Printf("Deleted expired cache: %s", item.FilePath)
 				}
 			}
 			r.mutex.Unlock()

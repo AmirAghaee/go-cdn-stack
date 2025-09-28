@@ -35,10 +35,6 @@ func Load() *Config {
 		AppUrl:         "127.0.0.1:8080",
 		MidCacheUrl:    "127.0.0.1:9050",
 		MidInternalUrl: "127.0.0.1:9060",
-		Origins: map[string]string{
-			"example.com": "http://localhost:8081",
-			"test.com":    "http://localhost:8082",
-		},
 	}
 
 	// Load TTL
