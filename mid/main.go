@@ -58,7 +58,7 @@ func main() {
 	cacheItemRepository.LoadFromDisk()
 	cacheItemRepository.StartCleaner()
 
-	go startInternalPort(cfg)
+	go startInternalPort(cfg, cdnRepository)
 
 	r := gin.Default()
 	http.RegisterCacheRoutes(r, cacheService)
@@ -67,9 +67,9 @@ func main() {
 	_ = r.Run(cfg.AppCacheUrl)
 }
 
-func startInternalPort(cfg *config.Config) {
+func startInternalPort(cfg *config.Config, cdnRepository repository.CdnRepositoryInterface) {
 	edgeRepository := repository.NewEdgeRepository()
-	edgeService := service.NewEdgeService(edgeRepository)
+	edgeService := service.NewEdgeService(edgeRepository, cdnRepository)
 
 	r := gin.Default()
 	http.RegisterInternalRoutes(r, edgeService)

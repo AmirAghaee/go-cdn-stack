@@ -18,4 +18,5 @@ func NewEdgeHandler(edgeService service.EdgeServiceInterface) *EdgeHandler {
 
 func (h *EdgeHandler) Register(r *gin.Engine) {
 	r.POST("/edge/submit", h.edgeService.Register)
+	r.GET("/edge/cdns", h.edgeService.GetCdns)
 }
