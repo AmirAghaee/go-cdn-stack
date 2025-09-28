@@ -29,6 +29,7 @@ func main() {
 
 	// Initialize dependencies
 	cacheRepo := repository.NewInMemoryCache(cfg)
+	cdnRepo := repository.NewCdnRepository()
 	edgeService := service.NewEdgeService(cacheRepo, cfg)
 	httpHandler := handler.NewHTTPHandler(edgeService)
 
@@ -37,7 +38,7 @@ func main() {
 	cacheRepo.StartCleaner()
 
 	//  setup services
-	midService := service.NewMidService(midClient, cfg, cfg.AppName, cfg.AppUrl, AppVersion)
+	midService := service.NewMidService(midClient, cdnRepo, cfg, cfg.AppName, cfg.AppUrl, AppVersion)
 	midService.StartSubmitHeartbeat()
 
 	// Setup HTTP server

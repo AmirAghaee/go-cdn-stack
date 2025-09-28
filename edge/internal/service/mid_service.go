@@ -7,6 +7,7 @@ import (
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/client"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/config"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/domain"
+	"github.com/AmirAghaee/go-cdn-stack/edge/internal/repository"
 )
 
 type MidServiceInterface interface {
@@ -14,20 +15,27 @@ type MidServiceInterface interface {
 }
 
 type midService struct {
-	client   client.MidClientInterface
-	config   *config.Config
-	service  string
-	instance string
-	version  string
+	midClient     client.MidClientInterface
+	config        *config.Config
+	cdnRepository repository.CdnRepositoryInterface
+	service       string
+	instance      string
+	version       string
 }
 
-func NewMidService(client client.MidClientInterface, config *config.Config, service, instance, version string) MidServiceInterface {
+func NewMidService(
+	midClient client.MidClientInterface,
+	cdnRepo repository.CdnRepositoryInterface,
+	config *config.Config,
+	service, instance, version string,
+) MidServiceInterface {
 	return &midService{
-		client:   client,
-		config:   config,
-		service:  service,
-		instance: instance,
-		version:  version,
+		midClient:     midClient,
+		config:        config,
+		cdnRepository: cdnRepo,
+		service:       service,
+		instance:      instance,
+		version:       version,
 	}
 }
 
@@ -45,11 +53,21 @@ func (s *midService) StartSubmitHeartbeat() {
 				Version:   s.version,
 			}
 
-			if err := s.client.Submit(edge); err != nil {
-				log.Printf("❌ failed to submit heartbeat: %v\n", err)
-			} else {
-				log.Println("✅ heartbeat sent")
+			cdnListVersion, err := s.midClient.Submit(edge)
+			if err != nil {
+				log.Printf("failed to submit heartbeat: %v\n", err)
+				return
 			}
+
+			if cdnListVersion != s.cdnRepository.GetVersion() {
+				cdns, err := s.midClient.GetCdns()
+				if err != nil {
+					log.Printf("failed to get cdn list: %s\n", err)
+				}
+				s.cdnRepository.Set(cdns, cdnListVersion)
+				log.Print(cdns)
+			}
+
 		}
 	}()
 }

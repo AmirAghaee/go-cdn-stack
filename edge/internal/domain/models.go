@@ -18,3 +18,11 @@ type Edge struct {
 	Timestamp time.Time `json:"timestamp"`
 	Version   string    `json:"version"`
 }
+
+type CDN struct {
+	ID       string `json:"id"`
+	Domain   string `json:"domain"`
+	Origin   string `json:"origin"`
+	IsActive bool   `json:"is_active"`
+	CacheTTL uint   `json:"cache_ttl"`
+}
