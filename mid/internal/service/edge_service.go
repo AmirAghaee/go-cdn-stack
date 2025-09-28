@@ -34,7 +34,11 @@ func (s *edgeService) Register(c *gin.Context) {
 	}
 	s.edgeRepository.Set(edge)
 	fmt.Println(s.edgeRepository.GetAll())
-	c.JSON(200, gin.H{"status": "registered", "instance": edge.Instance})
+	c.JSON(200, gin.H{
+		"status":           "registered",
+		"instance":         edge.Instance,
+		"cdn_list_version": s.cdnRepository.GetVersion(),
+	})
 }
 
 func (s *edgeService) GetCdns(c *gin.Context) {
