@@ -17,10 +17,10 @@ type cdnSnapshotService struct {
 	cdnRepository      repository.CdnRepositoryInterface
 }
 
-func NewCdnSnapshotService(controlPanelClient client.ControlPanelClientInterface, cache repository.CdnRepositoryInterface) CdnSnapshotServiceInterface {
+func NewCdnSnapshotService(controlPanelClient client.ControlPanelClientInterface, cdnRepo repository.CdnRepositoryInterface) CdnSnapshotServiceInterface {
 	return &cdnSnapshotService{
 		controlPanelClient: controlPanelClient,
-		cdnRepository:      cache,
+		cdnRepository:      cdnRepo,
 	}
 }
 
