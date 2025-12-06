@@ -8,11 +8,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/config"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/domain"
+	"github.com/dgraph-io/ristretto"
 )
 
 type CacheItemRepositoryInterface interface {
@@ -24,39 +24,49 @@ type CacheItemRepositoryInterface interface {
 }
 
 type cacheItemRepository struct {
-	cache  map[string]*domain.CacheItem
-	mutex  sync.RWMutex
+	cache  *ristretto.Cache
 	config *config.Config
 }
 
-func NewCacheItemRepository(config *config.Config) CacheItemRepositoryInterface {
+func NewCacheItemRepository(cfg *config.Config) CacheItemRepositoryInterface {
+	// Ristretto config
+	cache, err := ristretto.NewCache(&ristretto.Config{
+		NumCounters: 1e7,     // Adjust based on expected key count
+		MaxCost:     1 << 28, // 256MB max (adjust depending on memory)
+		BufferItems: 64,
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	return &cacheItemRepository{
-		cache:  make(map[string]*domain.CacheItem),
-		config: config,
+		cache:  cache,
+		config: cfg,
 	}
 }
 
 func (r *cacheItemRepository) Get(key string) (*domain.CacheItem, bool) {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-
-	item, found := r.cache[key]
-	if !found || time.Now().After(item.ExpiresAt) {
+	value, ok := r.cache.Get(key)
+	if !ok {
 		return nil, false
 	}
-	return item, true
+
+	return value.(*domain.CacheItem), true
 }
 
 func (r *cacheItemRepository) Set(key string, item *domain.CacheItem) {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-	r.cache[key] = item
+	ttl := time.Until(item.ExpiresAt)
+
+	// If already expired, do nothing
+	if ttl <= 0 {
+		return
+	}
+
+	r.cache.SetWithTTL(key, item, 1, ttl)
 }
 
 func (r *cacheItemRepository) Delete(key string) {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-	delete(r.cache, key)
+	r.cache.Del(key)
 }
 
 func (r *cacheItemRepository) LoadFromDisk() {
@@ -91,6 +101,7 @@ func (r *cacheItemRepository) LoadFromDisk() {
 			}
 		}
 	}
+
 	fmt.Printf("Loaded %d cache items from disk\n", count)
 }
 
@@ -100,17 +111,30 @@ func (r *cacheItemRepository) StartCleaner() {
 		defer ticker.Stop()
 
 		for range ticker.C {
-			now := time.Now()
-			r.mutex.Lock()
-			for key, item := range r.cache {
-				if now.After(item.ExpiresAt) {
+			files, _ := os.ReadDir(r.config.CacheDir)
+
+			for _, f := range files {
+				if !strings.HasSuffix(f.Name(), ".cache.json") {
+					continue
+				}
+
+				metaFile := filepath.Join(r.config.CacheDir, f.Name())
+				data, err := os.ReadFile(metaFile)
+				if err != nil {
+					continue
+				}
+
+				var item domain.CacheItem
+				if json.Unmarshal(data, &item) != nil {
+					continue
+				}
+
+				if time.Now().After(item.ExpiresAt) {
 					_ = os.Remove(item.FilePath)
-					_ = os.Remove(item.FilePath + ".json")
-					delete(r.cache, key)
-					log.Printf("Deleted expired cache: %s", item.FilePath)
+					_ = os.Remove(metaFile)
+					log.Printf("Deleted expired cache (disk): %s", item.FilePath)
 				}
 			}
-			r.mutex.Unlock()
 		}
 	}()
 }
