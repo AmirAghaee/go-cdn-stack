@@ -29,7 +29,7 @@ POST http://localhost:9000/cdns
 Content-Type: application/json
 
 {
-  "origin": "localhost:8082",
+  "origin": "http://127.0.0.1:8081",
   "domain": "example.com",
   "cache_ttl": 60,
   "is_active": true
