@@ -25,7 +25,7 @@ func main() {
 	}
 
 	// setup clients
-	midClient := client.NewMidClient(cfg.MidInternalUrl)
+	midClient := client.NewMidClient(cfg.MidInternalURL)
 
 	// setup repository
 	cdnRepository := repository.NewCdnRepository()
@@ -39,7 +39,7 @@ func main() {
 	cacheItemRepository.StartCleaner()
 
 	//  setup services
-	midService := service.NewMidService(midClient, cdnRepository, cfg, cfg.AppName, cfg.AppUrl, AppVersion)
+	midService := service.NewMidService(midClient, cdnRepository, cfg, cfg.AppName, cfg.AppURL, AppVersion)
 	midService.StartSubmitHeartbeat()
 
 	// Setup HTTP server
@@ -47,8 +47,8 @@ func main() {
 	r := gin.Default()
 	http.RegisterCacheRoutes(r, cacheService)
 
-	fmt.Printf("Edge service running on %s\n", cfg.AppUrl)
-	if err := r.Run(cfg.AppUrl); err != nil {
+	fmt.Printf("Edge service running on %s\n", cfg.AppURL)
+	if err := r.Run(cfg.AppURL); err != nil {
 		panic(err)
 	}
 }

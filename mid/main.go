@@ -21,13 +21,13 @@ func main() {
 	cfg := config.Load()
 
 	// setup NATS publisher
-	natsBroker, err := messaging.NewNatsBroker(cfg.NatsUrl)
+	natsBroker, err := messaging.NewNatsBroker(cfg.NatsURL)
 	if err != nil {
 		log.Fatalf("messaging connect: %v", err)
 	}
 
 	// setup health publisher
-	healthService := service.NewHealthService(natsBroker, cfg.AppName, cfg.AppCacheUrl, AppVersion)
+	healthService := service.NewHealthService(natsBroker, cfg.AppName, cfg.AppCacheURL, AppVersion)
 	stopChan := make(chan struct{})
 	go healthService.Start(stopChan)
 	defer close(stopChan)
@@ -63,8 +63,8 @@ func main() {
 	r := gin.Default()
 	http.RegisterCacheRoutes(r, cacheService)
 
-	fmt.Printf("Server running on :%s\n", cfg.AppCacheUrl)
-	_ = r.Run(cfg.AppCacheUrl)
+	fmt.Printf("Server running on :%s\n", cfg.AppCacheURL)
+	_ = r.Run(cfg.AppCacheURL)
 }
 
 func startInternalPort(cfg *config.Config, cdnRepository repository.CdnRepositoryInterface) {
@@ -74,8 +74,8 @@ func startInternalPort(cfg *config.Config, cdnRepository repository.CdnRepositor
 	r := gin.Default()
 	http.RegisterInternalRoutes(r, edgeService)
 
-	fmt.Printf("Internal Edge API running on %s\n", cfg.AppInternalUrl)
-	if err := r.Run(cfg.AppInternalUrl); err != nil {
+	fmt.Printf("Internal Edge API running on %s\n", cfg.AppInternalURL)
+	if err := r.Run(cfg.AppInternalURL); err != nil {
 		log.Fatalf("internal server failed: %v", err)
 	}
 }

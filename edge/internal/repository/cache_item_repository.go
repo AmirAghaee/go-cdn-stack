@@ -96,7 +96,7 @@ func (r *cacheItemRepository) LoadFromDisk() {
 
 func (r *cacheItemRepository) StartCleaner() {
 	go func() {
-		ticker := time.NewTicker(r.config.CleanerInterval)
+		ticker := time.NewTicker(r.config.CleanerIntervalDuration)
 		defer ticker.Stop()
 
 		for range ticker.C {

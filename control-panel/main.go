@@ -58,6 +58,6 @@ func main() {
 	r := gin.Default()
 	http.RegisterRoutes(r, cdnService, userService, natsBroker)
 
-	fmt.Printf("Server running on :%s\n", cfg.AppUrl)
-	_ = r.Run(cfg.AppUrl)
+	fmt.Printf("Server running on %s\n", cfg.AppURL)
+	_ = r.Run(cfg.AppURL)
 }

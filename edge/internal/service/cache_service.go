@@ -60,7 +60,7 @@ func (s *cacheService) CacheRequest(c *gin.Context) {
 }
 
 func (s *cacheService) fetchAndCache(c *gin.Context, cdn domain.CDN, cacheKey string) {
-	targetURL := "http://" + s.config.MidCacheUrl + c.Request.URL.Path
+	targetURL := "http://" + s.config.MidCacheURL + c.Request.URL.Path
 
 	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
 	if err != nil {

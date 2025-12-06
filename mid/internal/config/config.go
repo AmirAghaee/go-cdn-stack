@@ -1,87 +1,62 @@
 package config
 
 import (
-	"fmt"
-	"os"
-	"strconv"
+	"log"
+	"strings"
 	"time"
 
-	"github.com/joho/godotenv"
+	"github.com/spf13/viper"
 )
 
 type Config struct {
-	GinMode         string
-	AppCacheUrl     string
-	AppInternalUrl  string
-	AppName         string
-	ControlPanelURL string
-	NatsUrl         string
-	CacheDir        string
-	CleanerInterval time.Duration
-	CacheTTL        time.Duration
+	GinMode         string `mapstructure:"APP_MODE"`
+	AppCacheURL     string `mapstructure:"APP_CACHE_URL"`
+	AppInternalURL  string `mapstructure:"APP_INTERNAL_URL"`
+	AppName         string `mapstructure:"APP_NAME"`
+	ControlPanelURL string `mapstructure:"CONTROL_PANEL_URL"`
+	NatsURL         string `mapstructure:"NATS_URL"`
+	CacheDir        string `mapstructure:"CACHE_DIR"`
+
+	CleanerInterval int `mapstructure:"CACHE_CLEANER_TTL"` // seconds
+	CacheTTL        int `mapstructure:"CACHE_TTL"`         // seconds
+
+	// Derived:
+	CleanerIntervalDuration time.Duration `mapstructure:"-"`
+	CacheTTLDuration        time.Duration `mapstructure:"-"`
 }
 
 func Load() *Config {
-	if err := godotenv.Load(); err != nil {
-		fmt.Println("No .env file found, using defaults")
+	v := viper.New()
+
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	// Default values
+	v.SetDefault("APP_MODE", "debug")
+	v.SetDefault("APP_CACHE_URL", "127.0.0.1:9050")
+	v.SetDefault("APP_INTERNAL_URL", "127.0.0.1:9060")
+	v.SetDefault("APP_NAME", "MID01")
+	v.SetDefault("CONTROL_PANEL_URL", "http://localhost:9000")
+	v.SetDefault("NATS_URL", "nats://localhost:4222")
+	v.SetDefault("CACHE_DIR", "./cache")
+	v.SetDefault("CACHE_CLEANER_TTL", 60)
+	v.SetDefault("CACHE_TTL", 10)
+
+	// .env support
+	v.SetConfigName(".env")
+	v.SetConfigType("env")
+	v.AddConfigPath(".")
+	v.AddConfigPath("./config")
+	_ = v.ReadInConfig()
+
+	var cfg Config
+	if err := v.Unmarshal(&cfg); err != nil {
+		log.Fatalf("failed to load config: %v", err)
 	}
 
-	config := &Config{
-		GinMode:         "debug",
-		ControlPanelURL: "http://localhost:9000",
-		AppCacheUrl:     "127.0.0.1:9050",
-		AppInternalUrl:  "127.0.0.1:9060",
-		NatsUrl:         "nats://localhost:4222",
-		CacheDir:        "./cache",
-	}
+	// Convert TTLs
+	cfg.CleanerIntervalDuration = time.Duration(cfg.CleanerInterval) * time.Second
+	cfg.CacheTTLDuration = time.Duration(cfg.CacheTTL) * time.Second
 
-	// control panel url
-	if ControlPanelUrl := os.Getenv("CONTROL_PANEL_URL"); ControlPanelUrl != "" {
-		config.ControlPanelURL = ControlPanelUrl
-	}
-
-	// Load gin mode
-	if ginMode := os.Getenv("APP_MODE"); ginMode != "" {
-		config.GinMode = ginMode
-	}
-
-	// Load app port
-	if appCacheUrl := os.Getenv("APP_CACHE_URL"); appCacheUrl != "" {
-		config.AppCacheUrl = appCacheUrl
-	}
-	if appInternalUrl := os.Getenv("APP_INTERNAL_URL"); appInternalUrl != "" {
-		config.AppInternalUrl = appInternalUrl
-	}
-
-	// Load nats url
-	if NatsUrl := os.Getenv("NATS_URL"); NatsUrl != "" {
-		config.NatsUrl = NatsUrl
-	}
-
-	// set cache directory
-	if dir := os.Getenv("CACHE_DIR"); dir != "" {
-		config.CacheDir = dir
-	}
-
-	// set cleaner interval
-	if config.CleanerInterval == 0 {
-		config.CleanerInterval = 60 * time.Second
-	}
-
-	// Load TTL
-	if ttlStr := os.Getenv("CACHE_TTL"); ttlStr != "" {
-		if ttl, err := strconv.Atoi(ttlStr); err == nil && ttl > 0 {
-			config.CacheTTL = time.Duration(ttl) * time.Second
-		}
-	}
-	if config.CacheTTL == 0 {
-		config.CacheTTL = 10 * time.Second
-	}
-
-	// set app name
-	if appName := os.Getenv("APP_NAME"); appName != "" {
-		config.AppName = appName
-	}
-
-	return config
+	return &cfg
 }
