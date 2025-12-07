@@ -13,6 +13,7 @@ import (
 	"github.com/AmirAghaee/go-cdn-stack/pkg/messaging"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const AppVersion = "v1.0.0"
@@ -61,9 +62,33 @@ func main() {
 	go startInternalPort(cfg, cdnRepository)
 
 	r := gin.Default()
+
+	// Add metrics and health endpoints via middleware (before catch-all routes)
+	r.Use(func(c *gin.Context) {
+		// Handle metrics endpoint
+		if c.Request.URL.Path == "/metrics" {
+			promhttp.Handler().ServeHTTP(c.Writer, c.Request)
+			c.Abort()
+			return
+		}
+
+		// Handle health endpoint
+		if c.Request.URL.Path == "/health" {
+			c.JSON(200, gin.H{
+				"status":  "healthy",
+				"version": AppVersion,
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	})
+
 	http.RegisterCacheRoutes(r, cacheService)
 
-	fmt.Printf("Server running on :%s\n", cfg.AppCacheURL)
+	fmt.Printf("Mid cache server running on %s\n", cfg.AppCacheURL)
+	fmt.Printf("Metrics available at %s/metrics\n", cfg.AppCacheURL)
 	_ = r.Run(cfg.AppCacheURL)
 }
 
@@ -72,6 +97,9 @@ func startInternalPort(cfg *config.Config, cdnRepository repository.CdnRepositor
 	edgeService := service.NewEdgeService(edgeRepository, cdnRepository)
 
 	r := gin.Default()
+
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
 	http.RegisterInternalRoutes(r, edgeService)
 
 	fmt.Printf("Internal Mid API running on %s\n", cfg.AppInternalURL)

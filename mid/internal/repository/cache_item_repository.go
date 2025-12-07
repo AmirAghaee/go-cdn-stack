@@ -12,6 +12,7 @@ import (
 
 	"github.com/AmirAghaee/go-cdn-stack/mid/internal/config"
 	"github.com/AmirAghaee/go-cdn-stack/mid/internal/domain"
+	"github.com/AmirAghaee/go-cdn-stack/mid/internal/metrics"
 	"github.com/dgraph-io/ristretto"
 )
 
@@ -34,6 +35,10 @@ func NewCacheItemRepository(cfg *config.Config) CacheItemRepositoryInterface {
 		NumCounters: 1e7,     // Adjust based on expected key count
 		MaxCost:     1 << 28, // 256MB max (adjust depending on memory)
 		BufferItems: 64,
+		OnEvict: func(item *ristretto.Item) {
+			// Update metrics when items are evicted
+			go updateCacheMetrics(cfg.CacheDir)
+		},
 	})
 	if err != nil {
 		panic(err)
@@ -63,10 +68,24 @@ func (r *cacheItemRepository) Set(key string, item *domain.CacheItem) {
 	}
 
 	r.cache.SetWithTTL(key, item, 1, ttl)
+
+	// Update metrics after successful set
+	go updateCacheMetrics(r.config.CacheDir)
 }
 
 func (r *cacheItemRepository) Delete(key string) {
+	// Get the item before deleting to remove file
+	if value, ok := r.cache.Get(key); ok {
+		if item, ok := value.(*domain.CacheItem); ok {
+			_ = os.Remove(item.FilePath)
+			_ = os.Remove(item.FilePath + ".json")
+		}
+	}
+
 	r.cache.Del(key)
+
+	// Update metrics after deletion
+	go updateCacheMetrics(r.config.CacheDir)
 }
 
 func (r *cacheItemRepository) LoadFromDisk() {
@@ -103,6 +122,9 @@ func (r *cacheItemRepository) LoadFromDisk() {
 	}
 
 	fmt.Printf("Loaded %d cache items from disk\n", count)
+
+	// Update metrics after loading
+	updateCacheMetrics(r.config.CacheDir)
 }
 
 func (r *cacheItemRepository) StartCleaner() {
@@ -112,6 +134,7 @@ func (r *cacheItemRepository) StartCleaner() {
 
 		for range ticker.C {
 			files, _ := os.ReadDir(r.config.CacheDir)
+			deletedCount := 0
 
 			for _, f := range files {
 				if !strings.HasSuffix(f.Name(), ".cache.json") {
@@ -132,9 +155,41 @@ func (r *cacheItemRepository) StartCleaner() {
 				if time.Now().After(item.ExpiresAt) {
 					_ = os.Remove(item.FilePath)
 					_ = os.Remove(metaFile)
+					deletedCount++
 					log.Printf("Deleted expired cache (disk): %s", item.FilePath)
 				}
 			}
+
+			// Update metrics after cleanup if anything was deleted
+			if deletedCount > 0 {
+				updateCacheMetrics(r.config.CacheDir)
+			}
 		}
 	}()
+}
+
+// updateCacheMetrics calculates and updates cache size and item count metrics
+func updateCacheMetrics(cacheDir string) {
+	files, err := os.ReadDir(cacheDir)
+	if err != nil {
+		return
+	}
+
+	var totalSize int64
+	var itemCount int
+
+	for _, f := range files {
+		if f.IsDir() || !strings.HasSuffix(f.Name(), ".cache") {
+			continue
+		}
+
+		filePath := filepath.Join(cacheDir, f.Name())
+		if info, err := os.Stat(filePath); err == nil {
+			totalSize += info.Size()
+			itemCount++
+		}
+	}
+
+	metrics.CacheSize.Set(float64(totalSize))
+	metrics.CacheItems.Set(float64(itemCount))
 }
