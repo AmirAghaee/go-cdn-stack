@@ -74,7 +74,7 @@ func startInternalPort(cfg *config.Config, cdnRepository repository.CdnRepositor
 	r := gin.Default()
 	http.RegisterInternalRoutes(r, edgeService)
 
-	fmt.Printf("Internal Edge API running on %s\n", cfg.AppInternalURL)
+	fmt.Printf("Internal Mid API running on %s\n", cfg.AppInternalURL)
 	if err := r.Run(cfg.AppInternalURL); err != nil {
 		log.Fatalf("internal server failed: %v", err)
 	}

@@ -15,7 +15,8 @@ type Config struct {
 	CacheDir        string            `mapstructure:"CACHE_DIR"`
 	MetadataExt     string            `mapstructure:"METADATA_EXT"`
 	CleanerInterval int               `mapstructure:"CACHE_CLEANER_TTL"` // seconds
-	AppURL          string            `mapstructure:"APP_URL"`
+	AppCacheURL     string            `mapstructure:"APP_CACHE_URL"`
+	AppInternalURL  string            `mapstructure:"APP_INTERNAL_URL"`
 	MidCacheURL     string            `mapstructure:"MID_CACHE_URL"`
 	MidInternalURL  string            `mapstructure:"MID_INTERNAL_URL"`
 	Origins         map[string]string `mapstructure:"ORIGINS"`
@@ -38,7 +39,8 @@ func Load() *Config {
 	v.SetDefault("CACHE_DIR", "./cache")
 	v.SetDefault("METADATA_EXT", ".meta")
 	v.SetDefault("CACHE_CLEANER_TTL", 60)
-	v.SetDefault("APP_URL", "127.0.0.1:8080")
+	v.SetDefault("APP_CACHE_URL", "127.0.0.1:8080")
+	v.SetDefault("APP_INTERNAL_URL", "127.0.0.1:8090")
 	v.SetDefault("MID_CACHE_URL", "127.0.0.1:9050")
 	v.SetDefault("MID_INTERNAL_URL", "127.0.0.1:9060")
 	v.SetDefault("ORIGINS", map[string]string{})
