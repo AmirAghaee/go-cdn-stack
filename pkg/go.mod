@@ -2,7 +2,10 @@ module github.com/AmirAghaee/go-cdn-stack/pkg
 
 go 1.25
 
-require github.com/nats-io/nats.go v1.46.0
+require (
+	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/nats-io/nats.go v1.46.0
+)
 
 require (
 	github.com/klauspost/compress v1.18.0 // indirect
