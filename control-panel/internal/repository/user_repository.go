@@ -12,10 +12,10 @@ import (
 )
 
 type UserRepositoryInterface interface {
-	CreateUser(ctx context.Context, c *domain.User) error
-	ListUser(ctx context.Context) ([]*domain.User, error)
+	Create(ctx context.Context, c *domain.User) error
+	FindAll(ctx context.Context) ([]*domain.User, error)
 	DeleteUser(ctx context.Context, id string) error
-	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
+	FindByEmail(ctx context.Context, email string) (*domain.User, error)
 }
 
 type UserRepository struct {
@@ -28,12 +28,12 @@ func NewUserRepository(client *mongo.Client, dbName string) UserRepositoryInterf
 	}
 }
 
-func (m *UserRepository) CreateUser(ctx context.Context, c *domain.User) error {
+func (m *UserRepository) Create(ctx context.Context, c *domain.User) error {
 	_, err := m.db.Collection("users").InsertOne(ctx, c)
 	return err
 }
 
-func (m *UserRepository) ListUser(ctx context.Context) ([]*domain.User, error) {
+func (m *UserRepository) FindAll(ctx context.Context) ([]*domain.User, error) {
 	cur, err := m.db.Collection("users").Find(ctx, bson.M{})
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func (m *UserRepository) DeleteUser(ctx context.Context, id string) error {
 	return nil
 }
 
-func (m *UserRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
+func (m *UserRepository) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
 	var user domain.User
 	err := m.db.Collection("users").FindOne(ctx, bson.M{"email": email}).Decode(&user)
 	if err != nil {

@@ -2,58 +2,78 @@ package service
 
 import (
 	"context"
-	"errors"
 
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/domain"
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/helper"
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/repository"
-
+	"github.com/AmirAghaee/go-cdn-stack/pkg/jwt"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type UserServiceInterface interface {
-	Register(ctx context.Context, email string, password string) error
-	Login(ctx context.Context, email string, password string) (*domain.User, error)
+	Register(ctx context.Context, email, password string) error
+	Login(ctx context.Context, email, password string) (*LoginResponse, error)
 	List(ctx context.Context) ([]*domain.User, error)
-	Delete(ctx context.Context, id string) error
 }
 
 type UserService struct {
-	repo repository.UserRepositoryInterface
+	repo       repository.UserRepositoryInterface
+	jwtManager *jwt.Manager
 }
 
-func NewUserService(r repository.UserRepositoryInterface) UserServiceInterface {
+type LoginResponse struct {
+	Token string      `json:"token"`
+	User  domain.User `json:"user"`
+}
+
+func NewUserService(repo repository.UserRepositoryInterface, jwtManager *jwt.Manager) *UserService {
 	return &UserService{
-		repo: r,
+		repo:       repo,
+		jwtManager: jwtManager,
 	}
 }
 
-func (u *UserService) Register(ctx context.Context, email string, password string) error {
-	_, err := u.repo.GetUserByEmail(ctx, email)
-	if err == nil {
+func (s *UserService) Register(ctx context.Context, email, password string) error {
+	existing, _ := s.repo.FindByEmail(ctx, email)
+	if existing != nil {
 		return helper.ErrUserExists()
 	}
-	hash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	user := &domain.User{Email: email, Password: string(hash)}
-	return u.repo.CreateUser(ctx, user)
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	user := &domain.User{
+		Email:    email,
+		Password: string(hashedPassword),
+	}
+
+	return s.repo.Create(ctx, user)
 }
 
-func (u *UserService) Login(ctx context.Context, email string, password string) (*domain.User, error) {
-	user, err := u.repo.GetUserByEmail(ctx, email)
+func (s *UserService) Login(ctx context.Context, email, password string) (*LoginResponse, error) {
+	user, err := s.repo.FindByEmail(ctx, email)
+	if err != nil {
+		return nil, helper.ErrUnAuthorized()
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		return nil, helper.ErrUnAuthorized()
+	}
+
+	// Generate JWT token
+	token, err := s.jwtManager.Generate(user.ID.Hex(), user.Email)
 	if err != nil {
 		return nil, err
 	}
-	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)) != nil {
-		return nil, errors.New("invalid credentials")
-	}
-	user.Password = "" // hide password
-	return user, nil
+
+	return &LoginResponse{
+		Token: token,
+		User:  *user,
+	}, nil
 }
 
-func (u *UserService) List(ctx context.Context) ([]*domain.User, error) {
-	return u.repo.ListUser(ctx)
-}
-
-func (u *UserService) Delete(ctx context.Context, id string) error {
-	return u.repo.DeleteUser(ctx, id)
+func (s *UserService) List(ctx context.Context) ([]*domain.User, error) {
+	return s.repo.FindAll(ctx)
 }

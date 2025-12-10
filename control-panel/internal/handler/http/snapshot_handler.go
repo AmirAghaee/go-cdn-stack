@@ -15,8 +15,8 @@ func NewSnapshotHandler(natsPub messaging.MessageBrokerInterface) *SnapshotHandl
 	return &SnapshotHandler{natsPub: natsPub}
 }
 
-func (h *SnapshotHandler) Register(r *gin.Engine) {
-	r.POST("/snapshot", h.snapshot)
+func (h *SnapshotHandler) Register(protected *gin.RouterGroup) {
+	protected.POST("/snapshot", h.snapshot)
 }
 
 func (h *SnapshotHandler) snapshot(c *gin.Context) {
@@ -24,5 +24,5 @@ func (h *SnapshotHandler) snapshot(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to publish snapshot"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "snapshot published"})
+	c.JSON(http.StatusOK, gin.H{"message": "snapshot triggered"})
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/repository"
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/service"
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/subscriber"
+	"github.com/AmirAghaee/go-cdn-stack/pkg/jwt"
 	"github.com/AmirAghaee/go-cdn-stack/pkg/messaging"
 
 	"github.com/gin-gonic/gin"
@@ -39,13 +40,16 @@ func main() {
 		log.Fatalf("messaging connect: %v", err)
 	}
 
+	// setup JWT manager
+	jwtManager := jwt.NewJWTManager(cfg.JWTSecret, cfg.JWTDuration)
+
 	// repositories
 	userRepo := repository.NewUserRepository(client, cfg.DB)
 	cdnRepo := repository.NewCdnRepository(client, cfg.DB)
 	healthRepo := repository.NewHealthRepository(client, cfg.DB)
 
 	// services
-	userService := service.NewUserService(userRepo)
+	userService := service.NewUserService(userRepo, jwtManager)
 	cdnService := service.NewCdnService(cdnRepo)
 
 	// subscribe to health events
@@ -56,7 +60,7 @@ func main() {
 
 	// http handler
 	r := gin.Default()
-	http.RegisterRoutes(r, cdnService, userService, natsBroker)
+	http.RegisterRoutes(r, cdnService, userService, natsBroker, jwtManager)
 
 	fmt.Printf("Server running on %s\n", cfg.AppURL)
 	_ = r.Run(cfg.AppURL)

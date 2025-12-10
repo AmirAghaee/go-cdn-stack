@@ -19,12 +19,12 @@ func NewCdnHandler(cdnService service.CdnServiceInterface) *CdnHandler {
 	return &CdnHandler{cdnService: cdnService}
 }
 
-func (h *CdnHandler) Register(r *gin.Engine) {
-	r.POST("/cdns", h.createCDN)
-	r.GET("/cdns", h.listCDNs)
-	r.GET("/cdns/:id", h.getCDN)
-	r.PUT("/cdns/:id", h.updateCDN)
-	r.DELETE("/cdns/:id", h.deleteCDN)
+func (h *CdnHandler) Register(protected *gin.RouterGroup) {
+	protected.POST("/cdns", h.createCDN)
+	protected.GET("/cdns", h.listCDNs)
+	protected.GET("/cdns/:id", h.getCDN)
+	protected.PUT("/cdns/:id", h.updateCDN)
+	protected.DELETE("/cdns/:id", h.deleteCDN)
 }
 
 func (h *CdnHandler) createCDN(c *gin.Context) {

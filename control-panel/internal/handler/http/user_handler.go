@@ -19,10 +19,13 @@ func NewUserHandler(userService service.UserServiceInterface) *UserHandler {
 	return &UserHandler{userService: userService}
 }
 
-func (h *UserHandler) Register(r *gin.Engine) {
-	r.POST("/users", h.createUser)
-	r.GET("/users", h.listUsers)
-	r.POST("/login", h.loginUser)
+func (h *UserHandler) Register(g *gin.Engine, protected *gin.RouterGroup) {
+	// Public routes
+	g.POST("/register", h.createUser)
+	g.POST("/login", h.loginUser)
+
+	// Protected routes
+	protected.GET("/users", h.listUsers)
 }
 
 func (h *UserHandler) createUser(c *gin.Context) {
@@ -45,7 +48,7 @@ func (h *UserHandler) createUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.Status(http.StatusCreated)
+	c.JSON(http.StatusCreated, gin.H{"message": "user created successfully"})
 }
 
 func (h *UserHandler) listUsers(c *gin.Context) {
@@ -63,11 +66,11 @@ func (h *UserHandler) loginUser(c *gin.Context) {
 		c.JSON(sErr.Code, gin.H{"error": sErr.Message})
 		return
 	}
-	user, err := h.userService.Login(context.Background(), body.Email, body.Password)
+	response, err := h.userService.Login(context.Background(), body.Email, body.Password)
 	if err != nil {
 		sErr := helper.ErrUnAuthorized()
 		c.JSON(sErr.Code, gin.H{"error": sErr.Message})
 		return
 	}
-	c.JSON(http.StatusOK, user)
+	c.JSON(http.StatusOK, response)
 }

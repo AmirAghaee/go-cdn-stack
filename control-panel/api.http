@@ -1,32 +1,42 @@
-### users list
-GET http://localhost:9000/users
-Accept: application/json
+@baseUrl = http://localhost:9001
 
-### users create
-POST http://localhost:9000/users
+### USER LOGIN
+# This request stores the token into the token variable
+# After running this, all other API calls automatically use the token
+POST {{baseUrl}}/login
 Content-Type: application/json
 
 {
   "email": "amir.aghaee73@gmail.com",
   "password": "amir24"
 }
+> {%
+    client.global.set("token", response.body.token);
+%}
 
-### user login
-POST http://localhost:9000/login
+### USERS LIST
+GET {{baseUrl}}/api/users
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### USER REGISTER
+POST {{baseUrl}}/register
 Content-Type: application/json
 
 {
-  "email": "amir.aghaee73@gmail.com",
-  "password": "amir24a"
+  "email": "amir.aghaees73@gmail.com",
+  "password": "amir24"
 }
 
-### cdns list
-GET http://localhost:9000/cdns
+### CDNS LIST
+GET {{baseUrl}}/api/cdns
 Content-Type: application/json
+Authorization: Bearer {{token}}
 
-### cdn create
-POST http://localhost:9000/cdns
+### CDN CREATE
+POST {{baseUrl}}/api/cdns
 Content-Type: application/json
+Authorization: Bearer {{token}}
 
 {
   "origin": "http://127.0.0.1:8081",
@@ -35,10 +45,12 @@ Content-Type: application/json
   "is_active": true
 }
 
-### cdn delete
-DELETE http://localhost:9000/cdns/68caa221474affe1e9d178c4
+### CDN DELETE
+DELETE {{baseUrl}}/api/cdns/68caa221474affe1e9d178c4
 Content-Type: application/json
+Authorization: Bearer {{token}}
 
-### snapshot
-POST http://localhost:9000/snapshot
+### SNAPSHOT
+POST {{baseUrl}}/api/snapshot
 Content-Type: application/json
+Authorization: Bearer {{token}}
