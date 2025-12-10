@@ -1,5 +1,5 @@
-github.com/AmirAghaee/go-cdn-stack/pkg v0.0.0-20250923122420-91146ef8f46b h1:OYrTN01ndQNLB0QvDm3nJMWPEPhcZV7rxSVs0gLRc7A=
-github.com/AmirAghaee/go-cdn-stack/pkg v0.0.0-20250923122420-91146ef8f46b/go.mod h1:6IhimwSb2ZHo7agNtvSAki3W7+C6tm0NZVOspmIgZpE=
+github.com/AmirAghaee/go-cdn-stack/pkg v0.0.0-20251207113821-a70399bb715a h1:+nCsXBRN6me5IRVrzmkGHeiwelDyaphX83+PGqzy1So=
+github.com/AmirAghaee/go-cdn-stack/pkg v0.0.0-20251207113821-a70399bb715a/go.mod h1:kpFc07Uy+A2Vo9AqQG0UWzWxS4JVuvoLgxd9aQLr4OE=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/bytedance/sonic v1.11.6 h1:oUp34TzMlL+OY1OUWxHqsdkgC/Zfc85zGqw9siXjrc0=
@@ -43,6 +43,8 @@ github.com/go-viper/mapstructure/v2 v2.4.0 h1:EBsztssimR/CONLSZZ04E8qAkxNYq4Qp9L
 github.com/go-viper/mapstructure/v2 v2.4.0/go.mod h1:oJDH3BJKyqBA2TXFhDsKDGDTlndYOZ6rGS0BRZIxGhM=
 github.com/goccy/go-json v0.10.2 h1:CrxCmQqYDkv1z7lO7Wbh2HN93uovUHgrECaO5ZrCXAU=
 github.com/goccy/go-json v0.10.2/go.mod h1:6MelG93GURQebXPDq3khkgXZkazVtN9CRI+MGFi0w8I=
+github.com/golang-jwt/jwt/v5 v5.3.0 h1:pv4AsKCKKZuqlgs5sUmn4x8UlGa0kEVt/puTpKx9vvo=
+github.com/golang-jwt/jwt/v5 v5.3.0/go.mod h1:fxCRLWMO43lRc8nhHWY6LGqRcf+1gQWArsqaEUEa5bE=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
 github.com/google/gofuzz v1.0.0/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/M65Eg=

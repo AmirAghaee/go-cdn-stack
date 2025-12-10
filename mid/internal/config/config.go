@@ -16,6 +16,7 @@ type Config struct {
 	ControlPanelURL string `mapstructure:"CONTROL_PANEL_URL"`
 	NatsURL         string `mapstructure:"NATS_URL"`
 	CacheDir        string `mapstructure:"CACHE_DIR"`
+	JWTSecret       string `mapstructure:"JWT_SECRET"`
 
 	CleanerInterval int `mapstructure:"CACHE_CLEANER_TTL"` // seconds
 	CacheTTL        int `mapstructure:"CACHE_TTL"`         // seconds
@@ -41,6 +42,7 @@ func Load() *Config {
 	v.SetDefault("CACHE_DIR", "./cache")
 	v.SetDefault("CACHE_CLEANER_TTL", 60)
 	v.SetDefault("CACHE_TTL", 10)
+	v.SetDefault("JWT_SECRET", "default-secret-change-me")
 
 	// .env support
 	v.SetConfigName(".env")

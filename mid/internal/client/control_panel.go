@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/AmirAghaee/go-cdn-stack/mid/internal/domain"
+	"github.com/AmirAghaee/go-cdn-stack/pkg/jwt"
 )
 
 type ControlPanelClientInterface interface {
@@ -17,21 +18,36 @@ type ControlPanelClientInterface interface {
 type controlPanelClient struct {
 	baseURL    string
 	httpClient *http.Client
+	jwtManager *jwt.Manager
 }
 
-func NewControlPanelClient(baseURL string) ControlPanelClientInterface {
+func NewControlPanelClient(baseURL string, jwtSecretKey string) ControlPanelClientInterface {
 	return &controlPanelClient{
 		baseURL: baseURL,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		jwtManager: jwt.NewJWTManager(jwtSecretKey, 24*time.Hour),
 	}
 }
 
 func (c *controlPanelClient) GetCDNs() ([]domain.CDN, error) {
-	url := fmt.Sprintf("%s/cdns", c.baseURL)
+	url := fmt.Sprintf("%s/api/cdns", c.baseURL)
 
-	resp, err := c.httpClient.Get(url)
+	token, err := c.jwtManager.Generate("0", "mid01@cdn.lab")
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate JWT token: %w", err)
+	}
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+
+	// Execute request
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request to control panel: %w", err)
 	}

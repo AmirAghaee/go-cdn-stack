@@ -1,0 +1,85 @@
+version: "3.9"
+
+services:
+  control-panel:
+    build:
+      context: .
+      dockerfile: control-panel/Dockerfile
+    container_name: control-panel
+    ports:
+      - "9001:9001"
+    environment:
+      - APP_URL=0.0.0.0:9001
+      - NATS_URL=nats://nats_broker:4222
+      - MONGO_URI=mongodb://admin:admin@mongodb:27017/?authSource=admin
+    depends_on:
+      - nats
+      - mongodb
+    restart: unless-stopped
+
+  mid:
+    build:
+      context: .
+      dockerfile: mid/Dockerfile
+    container_name: mid
+    ports:
+      - "9060:9060"
+      - "9050:9050"
+    environment:
+      - CONTROL_PANEL_URL=http://control-panel:9001
+      - NATS_URL=nats://nats_broker:4222
+      - APP_CACHE_URL=0.0.0.0:9060
+      - APP_INTERNAL_URL=0.0.0.0:9050
+    depends_on:
+      - control-panel
+      - nats
+    restart: unless-stopped
+
+  edge:
+    build:
+      context: .
+      dockerfile: edge/Dockerfile
+    container_name: edge
+    ports:
+      - "8080:8080"
+      - "8090:8090"
+    environment:
+      - APP_CACHE_URL=0.0.0.0:8080
+      - APP_INTERNAL_URL=0.0.0.0:8090
+      - MID_CACHE_URL=mid:9050
+      - MID_INTERNAL_URL=mid:9050
+    depends_on:
+      - mid
+    restart: unless-stopped
+
+  origin:
+    build:
+      context: .
+      dockerfile: origin-sample/Dockerfile
+    container_name: origin
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+
+  nats:
+    image: nats
+    container_name: nats_broker
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+
+volumes:
+  mongo_data:

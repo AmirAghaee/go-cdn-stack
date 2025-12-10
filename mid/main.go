@@ -34,7 +34,7 @@ func main() {
 	defer close(stopChan)
 
 	// setup clients
-	controlPanelClient := client.NewControlPanelClient(cfg.ControlPanelURL)
+	controlPanelClient := client.NewControlPanelClient(cfg.ControlPanelURL, cfg.JWTSecret)
 
 	// setup repository
 	cdnRepository := repository.NewCdnRepository()

@@ -1,4 +1,4 @@
-@baseUrl = http://localhost:9001
+@baseUrl = http://127.0.0.1:9001
 
 ### USER LOGIN
 # This request stores the token into the token variable
@@ -24,7 +24,7 @@ POST {{baseUrl}}/register
 Content-Type: application/json
 
 {
-  "email": "amir.aghaees73@gmail.com",
+  "email": "amir.aghaee73@gmail.com",
   "password": "amir24"
 }
 
