@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   control-panel:
     build:
@@ -9,10 +7,10 @@ services:
     ports:
       - "9001:9001"
     environment:
-      - APP_URL=0.0.0.0:9001
-      - NATS_URL=nats://nats_broker:4222
-      - MONGO_URI=mongodb://admin:admin@mongodb:27017/?authSource=admin
-      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET before starting the stack}
+      APP_URL: 0.0.0.0:9001
+      NATS_URL: nats://nats:4222
+      MONGO_URI: mongodb://admin:admin@mongodb:27017/?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:-local-development-secret}
     depends_on:
       - nats
       - mongodb
@@ -27,11 +25,11 @@ services:
       - "8080:8080"
       - "8090:8090"
     environment:
-      - APP_CACHE_URL=0.0.0.0:8080
-      - APP_INTERNAL_URL=0.0.0.0:8090
-      - CONTROL_PANEL_URL=http://control-panel:9001
-      - NATS_URL=nats://nats_broker:4222
-      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET before starting the stack}
+      APP_CACHE_URL: 0.0.0.0:8080
+      APP_INTERNAL_URL: 0.0.0.0:8090
+      CONTROL_PANEL_URL: http://control-panel:9001
+      NATS_URL: nats://nats:4222
+      JWT_SECRET: ${JWT_SECRET:-local-development-secret}
     depends_on:
       - control-panel
       - nats

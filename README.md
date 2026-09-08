@@ -39,6 +39,18 @@ This project implements a **Content Delivery Network (CDN)** system using **Go (
 
 ## 🚀 How to Run
 
+### Docker Compose
+
+The complete local stack runs without a `.env` file:
+
+```bash
+docker compose up --build
+```
+
+Docker Compose uses a development-only JWT secret by default. For a shared or
+production deployment, set a strong `JWT_SECRET` in the environment or copy the
+root `.env.example` to `.env` and replace its value before starting the stack.
+
 ### 1. Clone the repo
 
 ```bash
@@ -48,7 +60,8 @@ cd go-cdn-stack
 
 ### 2. Run Control Panel
 
-Make sure MongoDB & NATS are running.
+Make sure MongoDB and NATS are running. A `.env` file is optional; the service
+uses the values documented in `control-panel/.env.example` as its defaults.
 
 ```bash
 cd control-panel
@@ -56,6 +69,9 @@ go run main.go
 ```
 
 ### 3. Run Edge Service
+
+A `.env` file is optional; the service uses the values documented in
+`edge/.env.example` as its defaults.
 
 ```bash
 cd edge
