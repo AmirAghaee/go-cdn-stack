@@ -25,6 +25,6 @@ func RegisterRoutes(
 
 	// Register handlers
 	NewUserHandler(userSvc).Register(g, protected)
-	NewCdnHandler(cdnSvc).Register(protected)
+	NewCdnHandler(cdnSvc, natsPub).Register(protected)
 	NewSnapshotHandler(natsPub).Register(protected)
 }
