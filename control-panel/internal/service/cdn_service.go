@@ -12,7 +12,7 @@ type CdnServiceInterface interface {
 	Create(ctx context.Context, origin, domain string, isActive bool, CacheTTL uint) error
 	List(ctx context.Context) ([]*domain.CDN, error)
 	Get(ctx context.Context, id string) (*domain.CDN, error)
-	Update(ctx context.Context, id, origin, domain string, isActive bool) error
+	Update(ctx context.Context, id, origin, domain string, isActive bool, cacheTTL uint) error
 	Delete(ctx context.Context, id string) error
 }
 
@@ -44,8 +44,8 @@ func (c *CdnService) Get(ctx context.Context, id string) (*domain.CDN, error) {
 	return c.repo.GetCDN(ctx, id)
 }
 
-func (c *CdnService) Update(ctx context.Context, id, origin, domainName string, isActive bool) error {
-	cdn := &domain.CDN{Origin: origin, Domain: domainName, IsActive: isActive}
+func (c *CdnService) Update(ctx context.Context, id, origin, domainName string, isActive bool, cacheTTL uint) error {
+	cdn := &domain.CDN{Origin: origin, Domain: domainName, IsActive: isActive, CacheTTL: cacheTTL}
 	return c.repo.UpdateCDN(ctx, id, cdn)
 }
 

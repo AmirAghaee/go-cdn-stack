@@ -13,7 +13,6 @@ This project implements a **Content Delivery Network (CDN)** system using **Go (
 .
 ├── control-panel       # Management API + MongoDB persistence + NATS subscriber
 ├── edge                # Edge CDN service (serves cached content, proxies requests)
-├── mid                 # Mid-tier service (cache logic, sync with control panel, health checks)
 └── origin-sample       # Sample origin server (static files for testing)
 ```
 
@@ -22,19 +21,16 @@ This project implements a **Content Delivery Network (CDN)** system using **Go (
 #### **Control Panel**
 - REST API to manage users, CDNs, and snapshots
 - Persists data in MongoDB
-- Subscribes to health updates from services via NATS
+- Publishes configuration-change notifications and subscribes to edge health via NATS
 
 #### **Edge**
 - Receives client requests
 - Caches static content (images, CSS, JS, fonts, video, audio)
-- Proxies dynamic/non-cacheable requests to origin servers
+- Proxies cache misses and non-cacheable requests directly to origin servers
 - Stores cache on disk
-
-#### **Mid**
-- Syncs CDN configurations from control panel (via snapshot API)
-- Caches responses locally (on disk + in-memory metadata)
-- Publishes service health status via NATS
-- Subscribes to snapshot updates from control panel
+- Loads a last-known-good configuration snapshot from disk at startup
+- Synchronizes configuration at startup, periodically, and after NATS events
+- Publishes health status directly through NATS
 
 #### **Origin Sample**
 - Simple static file server (images, JSON, video) for testing CDN flows
@@ -59,21 +55,14 @@ cd control-panel
 go run main.go
 ```
 
-### 3. Run Mid Service
-
-```bash
-cd mid
-go run main.go
-```
-
-### 4. Run Edge Service
+### 3. Run Edge Service
 
 ```bash
 cd edge
 go run main.go
 ```
 
-### 5. Run Origin Sample
+### 4. Run Origin Sample
 
 ```bash
 cd origin-sample
@@ -87,8 +76,8 @@ go run main.go
 - Cache rules: Only `image/*`, `font/*`, `text/css`, `text/javascript`, `application/javascript`, `video/*`, and `audio/*` responses are cached.
 - Non-GET requests are proxied directly to origin.
 - Each cached item has metadata stored alongside the cached file (headers + expiry time).
-- Mid-tier syncs CDNs from Control Panel at startup and also via NATS events.
-- Health check messages are published by services and consumed by Control Panel.
+- Edges sync CDNs from Control Panel at startup, periodically, and after NATS events.
+- Edge health messages are published directly to NATS and consumed by Control Panel.
 
 ---
 
@@ -96,14 +85,13 @@ go run main.go
 
 - **Language:** Go 1.25+
 - **Frameworks:** Gin, NATS, MongoDB driver
-- **Persistence:** MongoDB (control panel), Disk-based cache (edge/mid)
+- **Persistence:** MongoDB (control panel), disk-based cache and configuration snapshot (edge)
 
 ---
 
 ## 📌 TODO
 
-- [ ] Add Docker Compose for local development (MongoDB + NATS + services)
-- [ ] Add unit/integration tests
+- [ ] Expand unit and integration test coverage
 - [ ] Implement cache invalidation via NATS
 - [ ] Add rate limiting and logging middleware
 

@@ -59,7 +59,7 @@ var (
 	OriginRequestsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "edge_origin_requests_total",
-			Help: "Total number of requests to origin/mid-cache",
+			Help: "Total number of requests to origin",
 		},
 		[]string{"host", "status"},
 	)

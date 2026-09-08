@@ -9,21 +9,24 @@ import (
 )
 
 type Config struct {
-	AppName         string            `mapstructure:"APP_NAME"`
-	GinMode         string            `mapstructure:"APP_MODE"`
-	CacheTTL        int               `mapstructure:"CACHE_TTL"` // seconds
-	CacheDir        string            `mapstructure:"CACHE_DIR"`
-	MetadataExt     string            `mapstructure:"METADATA_EXT"`
-	CleanerInterval int               `mapstructure:"CACHE_CLEANER_TTL"` // seconds
-	AppCacheURL     string            `mapstructure:"APP_CACHE_URL"`
-	AppInternalURL  string            `mapstructure:"APP_INTERNAL_URL"`
-	MidCacheURL     string            `mapstructure:"MID_CACHE_URL"`
-	MidInternalURL  string            `mapstructure:"MID_INTERNAL_URL"`
-	Origins         map[string]string `mapstructure:"ORIGINS"`
+	AppName         string `mapstructure:"APP_NAME"`
+	GinMode         string `mapstructure:"APP_MODE"`
+	CacheTTL        int    `mapstructure:"CACHE_TTL"` // seconds
+	CacheDir        string `mapstructure:"CACHE_DIR"`
+	MetadataExt     string `mapstructure:"METADATA_EXT"`
+	CleanerInterval int    `mapstructure:"CACHE_CLEANER_TTL"` // seconds
+	AppCacheURL     string `mapstructure:"APP_CACHE_URL"`
+	AppInternalURL  string `mapstructure:"APP_INTERNAL_URL"`
+	ControlPanelURL string `mapstructure:"CONTROL_PANEL_URL"`
+	NatsURL         string `mapstructure:"NATS_URL"`
+	JWTSecret       string `mapstructure:"JWT_SECRET"`
+	SnapshotFile    string `mapstructure:"CDN_SNAPSHOT_FILE"`
+	SyncInterval    int    `mapstructure:"CDN_SYNC_INTERVAL"`
 
 	// Derived values
 	CacheTTLDuration        time.Duration `mapstructure:"-"`
 	CleanerIntervalDuration time.Duration `mapstructure:"-"`
+	SyncIntervalDuration    time.Duration `mapstructure:"-"`
 }
 
 func Load() *Config {
@@ -41,9 +44,11 @@ func Load() *Config {
 	v.SetDefault("CACHE_CLEANER_TTL", 60)
 	v.SetDefault("APP_CACHE_URL", "127.0.0.1:8080")
 	v.SetDefault("APP_INTERNAL_URL", "127.0.0.1:8090")
-	v.SetDefault("MID_CACHE_URL", "127.0.0.1:9050")
-	v.SetDefault("MID_INTERNAL_URL", "127.0.0.1:9060")
-	v.SetDefault("ORIGINS", map[string]string{})
+	v.SetDefault("CONTROL_PANEL_URL", "http://127.0.0.1:9001")
+	v.SetDefault("NATS_URL", "nats://127.0.0.1:4222")
+	v.SetDefault("JWT_SECRET", "default-secret-change-me")
+	v.SetDefault("CDN_SNAPSHOT_FILE", "./cache/cdns.json")
+	v.SetDefault("CDN_SYNC_INTERVAL", 60)
 
 	// Load .env if exists
 	v.SetConfigName(".env")
@@ -60,6 +65,10 @@ func Load() *Config {
 	// Convert seconds → time.Duration
 	cfg.CacheTTLDuration = time.Duration(cfg.CacheTTL) * time.Second
 	cfg.CleanerIntervalDuration = time.Duration(cfg.CleanerInterval) * time.Second
+	cfg.SyncIntervalDuration = time.Duration(cfg.SyncInterval) * time.Second
+	if cfg.SyncIntervalDuration <= 0 {
+		log.Fatal("CDN_SYNC_INTERVAL must be greater than zero")
+	}
 
 	return &cfg
 }
