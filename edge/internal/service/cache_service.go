@@ -56,7 +56,7 @@ func (s *cacheService) CacheRequest(c *gin.Context) {
 	}
 
 	// Cacheable GET requests
-	cacheKey := host + c.Request.URL.Path
+	cacheKey := host + c.Request.URL.RequestURI()
 	if item, found := s.cacheItemRepository.Get(cacheKey); found && time.Now().Before(item.ExpiresAt) {
 		metrics.CacheHits.WithLabelValues(host).Inc()
 		s.serveFromFile(c, item)
@@ -70,7 +70,7 @@ func (s *cacheService) CacheRequest(c *gin.Context) {
 }
 
 func (s *cacheService) fetchAndCache(c *gin.Context, cdn domain.CDN, cacheKey string) {
-	targetURL := "http://" + s.config.MidCacheURL + c.Request.URL.Path
+	targetURL := strings.TrimRight(cdn.Origin, "/") + c.Request.URL.RequestURI()
 
 	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
 	if err != nil {
@@ -79,8 +79,8 @@ func (s *cacheService) fetchAndCache(c *gin.Context, cdn domain.CDN, cacheKey st
 		return
 	}
 
-	// Add headers
-	req.Header.Set("X-Original-Host", cdn.Domain)
+	// Preserve client request headers when fetching directly from the origin.
+	req.Header = c.Request.Header.Clone()
 	req.Header.Set("X-Forwarded-Host", c.Request.Host)
 	req.Header.Set("X-Forwarded-For", c.ClientIP())
 
@@ -172,7 +172,7 @@ func (s *cacheService) serveFromFile(c *gin.Context, item *domain.CacheItem) {
 }
 
 func (s *cacheService) proxyRequest(c *gin.Context, origin string) {
-	targetURL := origin + c.Request.URL.Path
+	targetURL := strings.TrimRight(origin, "/") + c.Request.URL.RequestURI()
 
 	req, err := http.NewRequest(c.Request.Method, targetURL, c.Request.Body)
 	if err != nil {

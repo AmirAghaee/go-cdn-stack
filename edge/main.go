@@ -1,15 +1,19 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/client"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/config"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/handler/http"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/repository"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/service"
+	"github.com/AmirAghaee/go-cdn-stack/edge/internal/subscriber"
+	"github.com/AmirAghaee/go-cdn-stack/pkg/messaging"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/gin-gonic/gin"
@@ -26,23 +30,46 @@ func main() {
 		panic(err)
 	}
 
-	// setup clients
-	midClient := client.NewMidClient(cfg.MidInternalURL)
-
 	// setup repository
 	cdnRepository := repository.NewCdnRepository()
 	cacheItemRepository := repository.NewCacheItemRepository(cfg)
 
-	// setup services
+	controlPanelClient := client.NewControlPanelClient(cfg.ControlPanelURL, cfg.JWTSecret)
+	snapshotService := service.NewCdnSnapshotService(
+		controlPanelClient,
+		cdnRepository,
+		cfg.SnapshotFile,
+		cfg.SyncIntervalDuration,
+	)
+	if err := snapshotService.LoadLocal(); err != nil {
+		log.Printf("failed to load local CDN snapshot: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if err := snapshotService.ProcessSnapshot(ctx); err != nil {
+		log.Printf("initial CDN synchronization failed; using last-known-good snapshot: %v", err)
+	}
+	cancel()
+
 	cacheService := service.NewCacheService(cfg, cdnRepository, cacheItemRepository)
 
 	// Load existing cache and start cleaner
 	cacheItemRepository.LoadFromDisk()
 	cacheItemRepository.StartCleaner()
 
-	//  setup services
-	midService := service.NewMidService(midClient, cdnRepository, cfg, cfg.AppName, cfg.AppCacheURL, AppVersion)
-	midService.StartSubmitHeartbeat()
+	stop := make(chan struct{})
+	defer close(stop)
+	snapshotService.StartPeriodic(stop)
+
+	// NATS accelerates configuration refresh and carries health updates. The
+	// periodic control-panel sync remains available if NATS is temporarily down.
+	if broker, err := messaging.NewNatsBroker(cfg.NatsURL); err != nil {
+		log.Printf("NATS unavailable; continuing with periodic CDN sync: %v", err)
+	} else {
+		if err := subscriber.NewCdnSnapshotSubscriber(broker, snapshotService).Register(); err != nil {
+			log.Printf("failed to subscribe to CDN snapshots: %v", err)
+		}
+		service.NewHealthService(broker, "edge", cfg.AppName, AppVersion).Start(stop)
+	}
 
 	go startInternalPort(cfg)
 
