@@ -23,6 +23,8 @@ func (f *storeFake) List(context.Context) ([]*User, error) { return nil, nil }
 func (f *storeFake) FindByEmail(context.Context, string) (*User, error) {
 	return f.user, f.findErr
 }
+func (f *storeFake) UpdatePassword(context.Context, string, string) error { return nil }
+func (f *storeFake) Delete(context.Context, string) error                 { return nil }
 
 type tokenIssuerFake struct {
 	token string

@@ -2,6 +2,7 @@ package mongostore
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/identity"
@@ -57,6 +58,38 @@ func (s *Store) FindByEmail(ctx context.Context, email string) (*identity.User, 
 		return nil, err
 	}
 	return doc.toUser(), nil
+}
+
+func (s *Store) UpdatePassword(ctx context.Context, id, passwordHash string) error {
+	oid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return identity.ErrUserNotFound
+	}
+
+	result, err := s.collection.UpdateOne(ctx, bson.M{"_id": oid}, bson.M{"$set": bson.M{"password": passwordHash}})
+	if err != nil {
+		return fmt.Errorf("update user password: %w", err)
+	}
+	if result.MatchedCount == 0 {
+		return identity.ErrUserNotFound
+	}
+	return nil
+}
+
+func (s *Store) Delete(ctx context.Context, id string) error {
+	oid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return identity.ErrUserNotFound
+	}
+
+	result, err := s.collection.DeleteOne(ctx, bson.M{"_id": oid})
+	if err != nil {
+		return fmt.Errorf("delete user: %w", err)
+	}
+	if result.DeletedCount == 0 {
+		return identity.ErrUserNotFound
+	}
+	return nil
 }
 
 func fromUser(user *identity.User) document {

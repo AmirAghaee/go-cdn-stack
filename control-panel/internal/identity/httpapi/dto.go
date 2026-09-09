@@ -22,6 +22,10 @@ type loginResponse struct {
 	User  userResponse `json:"user"`
 }
 
+type passwordRequest struct {
+	Password string `json:"password" binding:"required"`
+}
+
 func newUserResponse(user *identity.User) userResponse {
 	return userResponse{ID: user.ID, Email: user.Email, CreatedAt: user.CreatedAt}
 }

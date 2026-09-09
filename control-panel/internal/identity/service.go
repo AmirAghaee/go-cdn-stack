@@ -8,14 +8,18 @@ import (
 )
 
 var (
-	ErrUserExists   = errors.New("user already exists")
-	ErrUnauthorized = errors.New("invalid credentials")
+	ErrUserExists      = errors.New("user already exists")
+	ErrUserNotFound    = errors.New("user not found")
+	ErrSelfDelete      = errors.New("you cannot delete your own account")
+	ErrUnauthorized    = errors.New("invalid credentials")
 )
 
 type Store interface {
 	Create(context.Context, *User) error
 	List(context.Context) ([]*User, error)
 	FindByEmail(context.Context, string) (*User, error)
+	UpdatePassword(context.Context, string, string) error
+	Delete(context.Context, string) error
 }
 
 type TokenIssuer interface {
@@ -67,4 +71,19 @@ func (s *Service) Login(ctx context.Context, email, password string) (*LoginResu
 
 func (s *Service) List(ctx context.Context) ([]*User, error) {
 	return s.store.List(ctx)
+}
+
+func (s *Service) ChangePassword(ctx context.Context, userID, password string) error {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	return s.store.UpdatePassword(ctx, userID, string(hash))
+}
+
+func (s *Service) Delete(ctx context.Context, actorID, userID string) error {
+	if actorID == userID {
+		return ErrSelfDelete
+	}
+	return s.store.Delete(ctx, userID)
 }
