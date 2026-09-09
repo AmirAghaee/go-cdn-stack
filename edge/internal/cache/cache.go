@@ -12,6 +12,9 @@ type Request struct {
 	Header   map[string][]string
 	Body     io.Reader
 	ClientIP string
+	// ForwardedFor and Scheme are established by the inbound HTTP trust boundary.
+	ForwardedFor string
+	Scheme       string
 }
 
 // Response carries the selected response stream. The caller must close Body,
@@ -53,6 +56,9 @@ type OriginRequest struct {
 	Header   map[string][]string
 	Body     io.Reader
 	ClientIP string
+	// ForwardedFor and Scheme are established by the inbound HTTP trust boundary.
+	ForwardedFor string
+	Scheme       string
 }
 
 type OriginResponse struct {

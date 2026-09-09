@@ -68,7 +68,11 @@ func main() {
 		metrics,
 		cfg.CacheMaxObjectSizeBytes,
 	)
-	publicServer := httpserver.NewPublic(cfg.AppCacheURL, cachehttp.New(cacheService))
+	handler, err := cachehttp.NewWithTrustedProxies(cacheService, cfg.TrustedProxies)
+	if err != nil {
+		log.Fatalf("initialize proxy trust policy: %v", err)
+	}
+	publicServer := httpserver.NewPublic(cfg.AppCacheURL, handler)
 	internalServer := httpserver.NewInternal(cfg.AppInternalURL)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

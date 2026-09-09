@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cache"
+	"github.com/AmirAghaee/go-cdn-stack/edge/internal/platform/proxyheaders"
 )
 
 type Client struct {
@@ -35,9 +36,19 @@ func (c *Client) Fetch(ctx context.Context, request cache.OriginRequest) (cache.
 	if err != nil {
 		return cache.OriginResponse{}, fmt.Errorf("create origin request: %w", err)
 	}
-	upstreamRequest.Header = http.Header(cloneHeader(request.Header))
+	upstreamRequest.Header = proxyheaders.EndToEnd(request.Header)
+	proxyheaders.RemoveForwarding(upstreamRequest.Header)
 	upstreamRequest.Header.Set("X-Forwarded-Host", request.Host)
-	upstreamRequest.Header.Set("X-Forwarded-For", request.ClientIP)
+	forwardedFor := request.ForwardedFor
+	if forwardedFor == "" {
+		forwardedFor = request.ClientIP
+	}
+	if forwardedFor != "" {
+		upstreamRequest.Header.Set("X-Forwarded-For", forwardedFor)
+	}
+	if request.Scheme == "http" || request.Scheme == "https" {
+		upstreamRequest.Header.Set("X-Forwarded-Proto", request.Scheme)
+	}
 
 	response, err := c.httpClient.Do(upstreamRequest)
 	if err != nil {
@@ -45,16 +56,8 @@ func (c *Client) Fetch(ctx context.Context, request cache.OriginRequest) (cache.
 	}
 	return cache.OriginResponse{
 		StatusCode:    response.StatusCode,
-		Header:        cloneHeader(response.Header),
+		Header:        proxyheaders.EndToEnd(response.Header),
 		Body:          response.Body,
 		ContentLength: response.ContentLength,
 	}, nil
-}
-
-func cloneHeader(header map[string][]string) map[string][]string {
-	cloned := make(map[string][]string, len(header))
-	for key, values := range header {
-		cloned[key] = append([]string(nil), values...)
-	}
-	return cloned
 }

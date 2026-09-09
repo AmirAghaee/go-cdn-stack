@@ -166,6 +166,7 @@ func (s *Service) fetch(ctx context.Context, request Request, item cdn.CDN, cach
 	originResponse, err := s.origin.Fetch(ctx, OriginRequest{
 		Method: request.Method, Origin: item.Origin(), URI: request.URI, Host: request.Host,
 		Header: cloneHeader(request.Header), Body: request.Body, ClientIP: request.ClientIP,
+		ForwardedFor: request.ForwardedFor, Scheme: request.Scheme,
 	})
 	if err != nil {
 		s.metrics.RecordError(item.Domain(), "origin_request")

@@ -9,20 +9,21 @@ import (
 )
 
 type Config struct {
-	AppName                 string `mapstructure:"APP_NAME"`
-	GinMode                 string `mapstructure:"APP_MODE"`
-	CacheTTL                int    `mapstructure:"CACHE_TTL"`
-	CacheDir                string `mapstructure:"CACHE_DIR"`
-	MetadataExt             string `mapstructure:"METADATA_EXT"`
-	CleanerInterval         int    `mapstructure:"CACHE_CLEANER_TTL"`
-	CacheMaxObjectSizeBytes int64  `mapstructure:"CACHE_MAX_OBJECT_SIZE_BYTES"`
-	AppCacheURL             string `mapstructure:"APP_CACHE_URL"`
-	AppInternalURL          string `mapstructure:"APP_INTERNAL_URL"`
-	ControlPanelURL         string `mapstructure:"CONTROL_PANEL_URL"`
-	NATSURL                 string `mapstructure:"NATS_URL"`
-	JWTSecret               string `mapstructure:"JWT_SECRET"`
-	SnapshotFile            string `mapstructure:"CDN_SNAPSHOT_FILE"`
-	SyncInterval            int    `mapstructure:"CDN_SYNC_INTERVAL"`
+	TrustedProxies          []string `mapstructure:"TRUSTED_PROXIES"`
+	AppName                 string   `mapstructure:"APP_NAME"`
+	GinMode                 string   `mapstructure:"APP_MODE"`
+	CacheTTL                int      `mapstructure:"CACHE_TTL"`
+	CacheDir                string   `mapstructure:"CACHE_DIR"`
+	MetadataExt             string   `mapstructure:"METADATA_EXT"`
+	CleanerInterval         int      `mapstructure:"CACHE_CLEANER_TTL"`
+	CacheMaxObjectSizeBytes int64    `mapstructure:"CACHE_MAX_OBJECT_SIZE_BYTES"`
+	AppCacheURL             string   `mapstructure:"APP_CACHE_URL"`
+	AppInternalURL          string   `mapstructure:"APP_INTERNAL_URL"`
+	ControlPanelURL         string   `mapstructure:"CONTROL_PANEL_URL"`
+	NATSURL                 string   `mapstructure:"NATS_URL"`
+	JWTSecret               string   `mapstructure:"JWT_SECRET"`
+	SnapshotFile            string   `mapstructure:"CDN_SNAPSHOT_FILE"`
+	SyncInterval            int      `mapstructure:"CDN_SYNC_INTERVAL"`
 
 	CacheTTLDuration        time.Duration `mapstructure:"-"`
 	CleanerIntervalDuration time.Duration `mapstructure:"-"`
@@ -34,6 +35,7 @@ func Load() *Config {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 	v.SetDefault("APP_NAME", "EDGE01")
+	v.SetDefault("TRUSTED_PROXIES", []string{})
 	v.SetDefault("APP_MODE", "debug")
 	v.SetDefault("CACHE_TTL", 10)
 	v.SetDefault("CACHE_DIR", "./cache")
