@@ -4,3 +4,4 @@
 .env
 dashboard/node_modules/
 dashboard/dist/
+cdns.json

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cdn"
@@ -68,8 +67,14 @@ func (s *Service) Handle(ctx context.Context, request Request) Response {
 		return response
 	}
 
-	cacheKey := host + request.URI
-	if cached, found := s.cache.Get(cacheKey); found && s.now().Before(cached.ExpiresAt) {
+	if shouldBypassCache(request) {
+		response := s.fetch(ctx, request, item, "bypass")
+		s.recordResponse(request, host, response, startedAt)
+		return response
+	}
+
+	key := cacheKey(host, request.URI, request.Header)
+	if cached, found := s.cache.Get(key); found && s.now().Before(cached.ExpiresAt) {
 		s.metrics.RecordCacheHit(host)
 		response := Response{StatusCode: cached.StatusCode, Header: cloneHeader(cached.Header), Body: cached.Body, CacheStatus: "hit"}
 		s.recordResponse(request, host, response, startedAt)
@@ -78,14 +83,14 @@ func (s *Service) Handle(ctx context.Context, request Request) Response {
 
 	s.metrics.RecordCacheMiss(host)
 	response := s.fetch(ctx, request, item, "miss")
-	if response.StatusCode < http.StatusBadRequest && isCacheableContentType(firstHeader(response.Header, "Content-Type")) {
+	if expiresAt, cacheable := cacheExpiry(s.now(), item.CacheTTL(), response); cacheable {
 		entry := Entry{
 			StatusCode: response.StatusCode,
 			Header:     cloneHeader(response.Header),
 			Body:       append([]byte(nil), response.Body...),
-			ExpiresAt:  s.now().Add(time.Duration(item.CacheTTL()) * time.Second),
+			ExpiresAt:  expiresAt,
 		}
-		if err := s.cache.Set(cacheKey, entry); err != nil {
+		if err := s.cache.Set(key, entry); err != nil {
 			s.metrics.RecordError(host, "cache_write")
 		}
 	}
@@ -132,23 +137,4 @@ func cloneHeader(header map[string][]string) map[string][]string {
 		cloned[key] = append([]string(nil), values...)
 	}
 	return cloned
-}
-
-func firstHeader(header map[string][]string, key string) string {
-	for existingKey, values := range header {
-		if strings.EqualFold(existingKey, key) && len(values) > 0 {
-			return values[0]
-		}
-	}
-	return ""
-}
-
-func isCacheableContentType(contentType string) bool {
-	cacheable := []string{"image/", "font/", "text/css", "text/javascript", "application/javascript", "application/x-javascript", "video/", "audio/"}
-	for _, prefix := range cacheable {
-		if strings.HasPrefix(contentType, prefix) {
-			return true
-		}
-	}
-	return false
 }
