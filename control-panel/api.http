@@ -46,6 +46,23 @@ Authorization: Bearer {{token}}
   "is_active": true
 }
 
+### CDN DETAILS
+GET {{baseUrl}}/api/cdns/68caa221474affe1e9d178c4
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### CDN UPDATE
+PUT {{baseUrl}}/api/cdns/68caa221474affe1e9d178c4
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "origin": "http://127.0.0.1:8081",
+  "domain": "example.com",
+  "cache_ttl": 120,
+  "is_active": true
+}
+
 ### CDN DELETE
 DELETE {{baseUrl}}/api/cdns/68caa221474affe1e9d178c4
 Content-Type: application/json

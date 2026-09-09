@@ -1,8 +1,9 @@
 # GO CDN STACK
 
-This project implements a **Content Delivery Network (CDN)** system using **Go (Golang)** with the following stack:
+This project implements a **Content Delivery Network (CDN)** system with the following stack:
 
 - **Gin** (HTTP framework)
+- **React + Tailwind CSS** (administration dashboard)
 - **MongoDB** (Control Panel persistence)
 - **NATS** (messaging bus for events & health checks)
 - **Monorepo** structure with multiple services
@@ -11,12 +12,18 @@ This project implements a **Content Delivery Network (CDN)** system using **Go (
 
 ```
 .
+├── dashboard           # React administration dashboard
 ├── control-panel       # Management API + MongoDB persistence + NATS subscriber
 ├── edge                # Edge CDN service (serves cached content, proxies requests)
 └── origin-sample       # Sample origin server (static files for testing)
 ```
 
 ### Service Breakdown
+
+#### **Dashboard**
+- Modern administration interface for users and CDN configurations
+- Uses a same-origin reverse proxy to access the control-panel API
+- Available at `http://localhost:3000` when running with Docker Compose
 
 #### **Control Panel**
 - REST API to manage users, CDNs, and snapshots
@@ -46,6 +53,10 @@ The complete local stack runs without a `.env` file:
 ```bash
 docker compose up --build
 ```
+
+Open the dashboard at [http://localhost:3000](http://localhost:3000). The
+dashboard proxies API requests to the control-panel container, so no separate
+browser-side API configuration is required.
 
 Docker Compose uses a development-only JWT secret by default. For a shared or
 production deployment, set a strong `JWT_SECRET` in the environment or copy the
@@ -93,6 +104,20 @@ docker compose exec -it control-panel ./app create-user --email admin@example.co
 After the initial user is created, `POST /api/register` requires a bearer token from
 `POST /login`.
 
+### Dashboard development
+
+Run the control panel and its dependencies, then start the Vite development
+server in a separate terminal:
+
+```bash
+cd dashboard
+npm ci
+npm run dev
+```
+
+The development server listens on `http://localhost:3000` and proxies
+`/control-api` to the control panel at `http://127.0.0.1:9001`.
+
 ### 3. Run Edge Service
 
 A `.env` file is optional; the service uses the values documented in
@@ -124,8 +149,8 @@ go run main.go
 
 ## 🛠️ Tech Stack
 
-- **Language:** Go 1.25+
-- **Frameworks:** Gin, NATS, MongoDB driver
+- **Languages:** Go 1.25+, TypeScript
+- **Frameworks:** Gin, React, Tailwind CSS, NATS, MongoDB driver
 - **Persistence:** MongoDB (control panel), disk-based cache and configuration snapshot (edge)
 
 ---
