@@ -13,6 +13,7 @@ import (
 	cdnmongo "github.com/AmirAghaee/go-cdn-stack/control-panel/internal/cdn/mongostore"
 	cdnnats "github.com/AmirAghaee/go-cdn-stack/control-panel/internal/cdn/natspublisher"
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/edgehealth"
+	healthhttp "github.com/AmirAghaee/go-cdn-stack/control-panel/internal/edgehealth/httpapi"
 	healthmongo "github.com/AmirAghaee/go-cdn-stack/control-panel/internal/edgehealth/mongostore"
 	healthnats "github.com/AmirAghaee/go-cdn-stack/control-panel/internal/edgehealth/natshandler"
 	"github.com/AmirAghaee/go-cdn-stack/control-panel/internal/identity"
@@ -61,7 +62,9 @@ func main() {
 	identityService := identity.NewService(identitymongo.New(client.Database(cfg.DB)), tokenManager)
 	refreshNotifier := cdnnats.New(broker)
 	cdnService := cdn.NewService(cdnmongo.New(client.Database(cfg.DB)), refreshNotifier)
-	healthRecorder := edgehealth.NewRecorder(healthmongo.New(client.Database(cfg.DB)))
+	healthStore := healthmongo.New(client.Database(cfg.DB))
+	healthRecorder := edgehealth.NewRecorder(healthStore)
+	healthService := edgehealth.NewService(healthStore)
 
 	healthHandler := healthnats.New(broker, healthRecorder)
 	if err := healthHandler.Register(); err != nil {
@@ -72,6 +75,7 @@ func main() {
 		identityhttp.New(identityService),
 		cdnhttp.New(cdnService),
 		identityhttp.Auth(tokenManager),
+		healthhttp.New(healthService),
 	)
 
 	log.Printf("control panel listening on %s", cfg.AppURL)
