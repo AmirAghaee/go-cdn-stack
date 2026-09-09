@@ -21,7 +21,7 @@ This project implements a **Content Delivery Network (CDN)** system with the fol
 ### Service Breakdown
 
 #### **Dashboard**
-- Modern administration interface for users and CDN configurations
+- Modern administration interface for users, CDN configurations, and edge-node health
 - Uses a same-origin reverse proxy to access the control-panel API
 - Available at `http://localhost:3000` when running with Docker Compose
 

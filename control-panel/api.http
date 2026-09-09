@@ -72,3 +72,8 @@ Authorization: Bearer {{token}}
 POST {{baseUrl}}/api/snapshot
 Content-Type: application/json
 Authorization: Bearer {{token}}
+
+### EDGE NODE HEALTH
+GET {{baseUrl}}/api/health/nodes
+Accept: application/json
+Authorization: Bearer {{token}}
