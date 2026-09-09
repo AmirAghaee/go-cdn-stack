@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -96,6 +97,95 @@ func (fakeMetrics) RecordBytesReceived(string, int64)                   {}
 func (fakeMetrics) RecordBytesSent(string, string, int64)               {}
 func (fakeMetrics) RecordError(string, string)                          {}
 
+type concurrentCacheStore struct {
+	mu    sync.Mutex
+	items map[string]concurrentCacheEntry
+}
+
+type concurrentCacheEntry struct {
+	metadata EntryMetadata
+	body     []byte
+}
+
+func (s *concurrentCacheStore) Get(key string) (Entry, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	item, found := s.items[key]
+	if !found {
+		return Entry{}, false
+	}
+	return Entry{
+		StatusCode: item.metadata.StatusCode,
+		Header:     cloneHeader(item.metadata.Header),
+		Body:       io.NopCloser(bytes.NewReader(item.body)),
+		ExpiresAt:  item.metadata.ExpiresAt,
+	}, true
+}
+
+func (s *concurrentCacheStore) Begin(key string, metadata EntryMetadata) (PendingEntry, error) {
+	return &concurrentPendingEntry{store: s, key: key, metadata: metadata}, nil
+}
+
+type concurrentPendingEntry struct {
+	store    *concurrentCacheStore
+	key      string
+	metadata EntryMetadata
+	body     bytes.Buffer
+}
+
+func (e *concurrentPendingEntry) Write(data []byte) (int, error) { return e.body.Write(data) }
+func (e *concurrentPendingEntry) Abort() error                   { return nil }
+func (e *concurrentPendingEntry) Commit() error {
+	e.store.mu.Lock()
+	defer e.store.mu.Unlock()
+	e.store.items[e.key] = concurrentCacheEntry{
+		metadata: e.metadata,
+		body:     append([]byte(nil), e.body.Bytes()...),
+	}
+	return nil
+}
+
+type blockingOrigin struct {
+	mu      sync.Mutex
+	calls   int
+	release chan struct{}
+}
+
+func (o *blockingOrigin) Fetch(ctx context.Context, _ OriginRequest) (OriginResponse, error) {
+	o.mu.Lock()
+	o.calls++
+	o.mu.Unlock()
+	return OriginResponse{
+		StatusCode:    http.StatusOK,
+		Header:        map[string][]string{"Content-Type": {"image/png"}},
+		Body:          &blockingBody{ctx: ctx, release: o.release, reader: strings.NewReader("shared-origin-body")},
+		ContentLength: int64(len("shared-origin-body")),
+	}, nil
+}
+
+func (o *blockingOrigin) callCount() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.calls
+}
+
+type blockingBody struct {
+	ctx     context.Context
+	release <-chan struct{}
+	reader  *strings.Reader
+}
+
+func (b *blockingBody) Read(buffer []byte) (int, error) {
+	select {
+	case <-b.release:
+		return b.reader.Read(buffer)
+	case <-b.ctx.Done():
+		return 0, b.ctx.Err()
+	}
+}
+
+func (*blockingBody) Close() error { return nil }
+
 func TestCacheMissPreservesRequestURIAndHeaders(t *testing.T) {
 	item, err := cdn.New("id", "cdn.example", "http://origin.example/base", true, 60)
 	if err != nil {
@@ -124,6 +214,75 @@ func TestCacheMissPreservesRequestURIAndHeaders(t *testing.T) {
 	}
 	if _, ok := store.items[cacheKey("cdn.example", "/asset?id=7", nil)]; !ok {
 		t.Fatal("cache entry was not stored with the complete request URI")
+	}
+}
+
+func TestConcurrentMissesForSameKeyUseOneOriginRequest(t *testing.T) {
+	item := mustCDN(t, 60)
+	store := &concurrentCacheStore{items: make(map[string]concurrentCacheEntry)}
+	origin := &blockingOrigin{release: make(chan struct{})}
+	service := NewService(fakeCDNStore{item: item}, store, origin, fakeMetrics{}, 0)
+	request := Request{Method: http.MethodGet, Host: item.Domain(), URI: "/asset"}
+
+	leader := service.Handle(context.Background(), request)
+	followerDone := make(chan Response, 1)
+	go func() { followerDone <- service.Handle(context.Background(), request) }()
+
+	select {
+	case <-followerDone:
+		t.Fatal("follower returned before the cache fill completed")
+	case <-time.After(50 * time.Millisecond):
+	}
+	if calls := origin.callCount(); calls != 1 {
+		t.Fatalf("origin calls before release = %d", calls)
+	}
+
+	close(origin.release)
+	if body := readResponseBody(t, leader); body != "shared-origin-body" {
+		t.Fatalf("leader body = %q", body)
+	}
+	select {
+	case follower := <-followerDone:
+		if body := readResponseBody(t, follower); follower.CacheStatus != "hit" || body != "shared-origin-body" {
+			t.Fatalf("follower cache status=%q body=%q", follower.CacheStatus, body)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("follower did not resume after the cache fill completed")
+	}
+	if calls := origin.callCount(); calls != 1 {
+		t.Fatalf("origin calls = %d", calls)
+	}
+}
+
+func TestCanceledFollowerDoesNotCancelLeader(t *testing.T) {
+	item := mustCDN(t, 60)
+	store := &concurrentCacheStore{items: make(map[string]concurrentCacheEntry)}
+	origin := &blockingOrigin{release: make(chan struct{})}
+	service := NewService(fakeCDNStore{item: item}, store, origin, fakeMetrics{}, 0)
+	request := Request{Method: http.MethodGet, Host: item.Domain(), URI: "/asset"}
+
+	leader := service.Handle(context.Background(), request)
+	followerCtx, cancelFollower := context.WithCancel(context.Background())
+	cancelFollower()
+	follower := service.Handle(followerCtx, request)
+	if follower.StatusCode != statusClientClosedRequest {
+		t.Fatalf("canceled follower status = %d", follower.StatusCode)
+	}
+	_ = readResponseBody(t, follower)
+	if calls := origin.callCount(); calls != 1 {
+		t.Fatalf("origin calls after follower cancellation = %d", calls)
+	}
+
+	close(origin.release)
+	if body := readResponseBody(t, leader); body != "shared-origin-body" {
+		t.Fatalf("leader body = %q", body)
+	}
+	response := service.Handle(context.Background(), request)
+	if body := readResponseBody(t, response); response.CacheStatus != "hit" || body != "shared-origin-body" {
+		t.Fatalf("cached response status=%q body=%q", response.CacheStatus, body)
+	}
+	if calls := origin.callCount(); calls != 1 {
+		t.Fatalf("origin calls = %d", calls)
 	}
 }
 

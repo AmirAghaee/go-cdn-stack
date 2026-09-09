@@ -14,6 +14,8 @@ import (
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cdn"
 )
 
+const statusClientClosedRequest = 499
+
 type CDNStore interface {
 	FindByDomain(string) (cdn.CDN, bool)
 }
@@ -44,6 +46,7 @@ type Service struct {
 	metrics       Metrics
 	maxObjectSize int64
 	now           func() time.Time
+	flights       flightGroup
 }
 
 func NewService(cdns CDNStore, store Store, origin OriginClient, metrics Metrics, maxObjectSize int64) *Service {
@@ -83,24 +86,46 @@ func (s *Service) Handle(ctx context.Context, request Request) Response {
 	}
 
 	key := cacheKey(host, request.URI, request.Header)
-	if cached, found := s.cache.Get(key); found {
-		if s.now().Before(cached.ExpiresAt) {
-			s.metrics.RecordCacheHit(host)
-			response := Response{StatusCode: cached.StatusCode, Header: cloneHeader(cached.Header), Body: cached.Body, CacheStatus: "hit"}
-			return s.trackResponse(request, host, response, startedAt)
+	missRecorded := false
+	for {
+		if cached, found := s.cache.Get(key); found {
+			if s.now().Before(cached.ExpiresAt) {
+				s.metrics.RecordCacheHit(host)
+				response := Response{StatusCode: cached.StatusCode, Header: cloneHeader(cached.Header), Body: cached.Body, CacheStatus: "hit"}
+				return s.trackResponse(request, host, response, startedAt)
+			}
+			_ = cached.Body.Close()
 		}
-		_ = cached.Body.Close()
-	}
 
-	s.metrics.RecordCacheMiss(host)
-	response := s.fetch(ctx, request, item, "miss")
-	if expiresAt, cacheable := cacheExpiry(s.now(), item.CacheTTL(), response); cacheable {
-		entry := EntryMetadata{
-			StatusCode: response.StatusCode,
-			Header:     cloneHeader(response.Header),
-			ExpiresAt:  expiresAt,
+		if !missRecorded {
+			s.metrics.RecordCacheMiss(host)
+			missRecorded = true
 		}
-		if s.maxObjectSize <= 0 || responseContentLength(response) <= s.maxObjectSize {
+
+		flight, leader := s.flights.join(key)
+		if !leader {
+			select {
+			case <-flight.done:
+				continue
+			case <-ctx.Done():
+				response := Response{
+					StatusCode:  statusClientClosedRequest,
+					Header:      map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
+					Body:        io.NopCloser(strings.NewReader("Client closed request")),
+					CacheStatus: "error",
+				}
+				return s.trackResponse(request, host, response, startedAt)
+			}
+		}
+
+		response := s.fetch(ctx, request, item, "miss")
+		if expiresAt, cacheable := cacheExpiry(s.now(), item.CacheTTL(), response); cacheable &&
+			(s.maxObjectSize <= 0 || responseContentLength(response) <= s.maxObjectSize) {
+			entry := EntryMetadata{
+				StatusCode: response.StatusCode,
+				Header:     cloneHeader(response.Header),
+				ExpiresAt:  expiresAt,
+			}
 			pending, err := s.cache.Begin(key, entry)
 			if err != nil {
 				s.metrics.RecordError(host, "cache_write")
@@ -108,10 +133,46 @@ func (s *Service) Handle(ctx context.Context, request Request) Response {
 				response.Body = newCacheFillBody(response.Body, pending, s.maxObjectSize, func() {
 					s.metrics.RecordError(host, "cache_write")
 				})
+				response.Body = newFlightBody(response.Body, func() { s.flights.finish(key, flight) })
+				return s.trackResponse(request, host, response, startedAt)
 			}
 		}
+		s.flights.finish(key, flight)
+		return s.trackResponse(request, host, response, startedAt)
 	}
-	return s.trackResponse(request, host, response, startedAt)
+}
+
+type flight struct {
+	done chan struct{}
+}
+
+type flightGroup struct {
+	mu      sync.Mutex
+	flights map[string]*flight
+}
+
+func (g *flightGroup) join(key string) (*flight, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if existing := g.flights[key]; existing != nil {
+		return existing, false
+	}
+	if g.flights == nil {
+		g.flights = make(map[string]*flight)
+	}
+	created := &flight{done: make(chan struct{})}
+	g.flights[key] = created
+	return created, true
+}
+
+func (g *flightGroup) finish(key string, completed *flight) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.flights[key] != completed {
+		return
+	}
+	delete(g.flights, key)
+	close(completed.done)
 }
 
 func responseContentLength(response Response) int64 {
@@ -172,6 +233,30 @@ type cacheFillBody struct {
 	active        bool
 	finished      bool
 	onError       func()
+}
+
+type flightBody struct {
+	body     io.ReadCloser
+	onFinish func()
+	once     sync.Once
+}
+
+func newFlightBody(body io.ReadCloser, onFinish func()) io.ReadCloser {
+	return &flightBody{body: body, onFinish: onFinish}
+}
+
+func (b *flightBody) Read(buffer []byte) (int, error) {
+	count, err := b.body.Read(buffer)
+	if err != nil {
+		b.once.Do(b.onFinish)
+	}
+	return count, err
+}
+
+func (b *flightBody) Close() error {
+	err := b.body.Close()
+	b.once.Do(b.onFinish)
+	return err
 }
 
 func newCacheFillBody(body io.ReadCloser, pending PendingEntry, maxObjectSize int64, onError func()) io.ReadCloser {
