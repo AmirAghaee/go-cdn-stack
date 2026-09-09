@@ -72,6 +72,11 @@ export const api = {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   }),
+  changeUserPassword: (id: string, password: string) => request<MessageResponse>(`/api/users/${id}/password`, {
+    method: 'PUT',
+    body: JSON.stringify({ password }),
+  }),
+  deleteUser: (id: string) => request<void>(`/api/users/${id}`, { method: 'DELETE' }),
   listCDNs: () => request<CDN[]>('/api/cdns'),
   getCDN: (id: string) => request<CDN>(`/api/cdns/${id}`),
   createCDN: (input: CDNInput) => request<void>('/api/cdns', {
