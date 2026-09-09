@@ -65,7 +65,7 @@ uses the values documented in `control-panel/.env.example` as its defaults.
 
 ```bash
 cd control-panel
-go run main.go
+go run ./cmd/control-panel
 ```
 
 ### 3. Run Edge Service

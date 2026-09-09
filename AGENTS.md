@@ -88,6 +88,42 @@ Adapters translate between external systems and application ports.
 - Check MongoDB cursor errors, affected counts, duplicate-key errors, and context
   cancellation.
 
+### HTTP handler and application service boundaries
+
+A thin handler is defined by the decisions it owns, not by its line count. DTO
+mapping and explicit error-to-response mapping may make a handler longer without
+moving business logic into it.
+
+- HTTP handlers own route registration, path/query/header extraction, request
+  decoding, transport-level validation, application calls, HTTP status mapping,
+  response DTO mapping, and response encoding.
+- Transport-level validation checks whether the request can be understood, such
+  as required JSON fields, valid JSON syntax, and syntactically valid email
+  addresses.
+- Application services or use cases own business validation and decisions, such
+  as password policy, registration eligibility, uniqueness outcomes, credential
+  verification, authorization policy, and orchestration across stores,
+  publishers, token issuers, or other ports.
+- Keep HTTP DTOs in the HTTP adapter. Do not add JSON tags to application or
+  domain types merely to shorten response mapping code.
+- A handler should call one application operation for a request. It must not
+  reproduce business rules or directly coordinate multiple infrastructure
+  adapters.
+- Application operations must be transport-independent. They return results and
+  typed errors, never HTTP status codes or framework response types.
+- Define errors precisely enough for handlers to distinguish expected business
+  outcomes, such as invalid credentials, not found, or conflict, from dependency
+  failures and cancellation.
+- Map expected typed errors to the stable API contract. Log unexpected errors
+  internally with structured context and return a generic client-safe error; do
+  not expose raw database, messaging, token, or hashing errors.
+- Do not split every endpoint into its own service or use-case type by default. A
+  cohesive feature service is appropriate while its operations share a clear
+  purpose and dependencies. Split it when workflows, dependencies, transactions,
+  authorization rules, ownership, or test setup diverge materially.
+- Do not introduce an interface only to rename a concrete service. Add a small
+  consumer-owned interface when it creates a real substitution or test boundary.
+
 ### Composition root
 
 `main` or a dedicated bootstrap package is the only place that knows concrete

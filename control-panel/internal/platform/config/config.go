@@ -19,13 +19,10 @@ type Config struct {
 
 func Load() *Config {
 	v := viper.New()
-
-	// Allow env variables
-	v.SetEnvPrefix("") // no prefix
+	v.SetEnvPrefix("")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	v.AutomaticEnv() // read OS env vars
+	v.AutomaticEnv()
 
-	// Set default values
 	v.SetDefault("APP_URL", "127.0.0.1:9001")
 	v.SetDefault("MONGO_URI", "mongodb://admin:admin@localhost:27017")
 	v.SetDefault("MONGO_DB", "cdndb")
@@ -33,19 +30,16 @@ func Load() *Config {
 	v.SetDefault("JWT_SECRET", "default-secret-change-me")
 	v.SetDefault("JWT_DURATION", "24h")
 
-	// Read config file if exists
-	v.SetConfigName(".env") // supports .env, .env.yaml, .env.json etc
+	v.SetConfigName(".env")
 	v.SetConfigType("env")
 	v.AddConfigPath(".")
 	v.AddConfigPath("./config")
-	_ = v.ReadInConfig() // ignore error if file doesn't exist
+	_ = v.ReadInConfig()
 
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		log.Fatalf("unable to unmarshal config: %v", err)
 	}
-
-	// Parse JWT duration if it's a string
 	if cfg.JWTDuration == 0 {
 		duration, err := time.ParseDuration(v.GetString("JWT_DURATION"))
 		if err != nil {
@@ -53,6 +47,5 @@ func Load() *Config {
 		}
 		cfg.JWTDuration = duration
 	}
-
 	return &cfg
 }
