@@ -68,6 +68,31 @@ cd control-panel
 go run ./cmd/control-panel
 ```
 
+Create the first user from an interactive terminal before using the protected
+registration API:
+
+```bash
+go run ./cmd/control-panel create-user --email admin@example.com
+```
+
+For automation, provide the password over standard input instead of a command
+argument:
+
+```bash
+printf '%s\n' "$CONTROL_PANEL_USER_PASSWORD" | \
+  go run ./cmd/control-panel create-user --email admin@example.com --password-stdin
+```
+
+When the Compose stack is running, the same command is available in the
+control-panel container:
+
+```bash
+docker compose exec -it control-panel ./app create-user --email admin@example.com
+```
+
+After the initial user is created, `POST /api/register` requires a bearer token from
+`POST /login`.
+
 ### 3. Run Edge Service
 
 A `.env` file is optional; the service uses the values documented in

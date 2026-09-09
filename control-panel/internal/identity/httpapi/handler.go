@@ -17,11 +17,11 @@ func New(service *identity.Service) *Handler {
 }
 
 func (h *Handler) RegisterPublic(routes *gin.Engine) {
-	routes.POST("/register", h.register)
 	routes.POST("/login", h.login)
 }
 
 func (h *Handler) RegisterProtected(routes *gin.RouterGroup) {
+	routes.POST("/register", h.register)
 	routes.GET("/users", h.list)
 }
 

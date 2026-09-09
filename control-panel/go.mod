@@ -8,6 +8,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	go.mongodb.org/mongo-driver v1.17.4
 	golang.org/x/crypto v0.42.0
+	golang.org/x/term v0.35.0
 )
 
 require (
