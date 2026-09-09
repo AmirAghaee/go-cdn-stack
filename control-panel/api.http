@@ -19,6 +19,22 @@ GET {{baseUrl}}/api/users
 Accept: application/json
 Authorization: Bearer {{token}}
 
+### USER CHANGE PASSWORD
+# Existing JWTs remain valid until their configured expiration.
+PUT {{baseUrl}}/api/users/68caa221474affe1e9d178c4/password
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "password": "new-secure-password"
+}
+
+### USER DELETE
+# Administrators cannot delete their own account. Existing JWTs remain valid until expiration.
+DELETE {{baseUrl}}/api/users/68caa221474affe1e9d178c4
+Accept: application/json
+Authorization: Bearer {{token}}
+
 ### USER REGISTER
 POST {{baseUrl}}/api/register
 Content-Type: application/json
