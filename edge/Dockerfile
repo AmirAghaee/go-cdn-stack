@@ -9,7 +9,7 @@ COPY edge/ ./
 
 RUN go mod download
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o app main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o app ./cmd/edge
 
 FROM alpine:3.19
 WORKDIR /root/
