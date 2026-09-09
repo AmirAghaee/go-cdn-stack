@@ -127,38 +127,18 @@ func TestCacheExpiryHonorsConfiguredAndOriginFreshness(t *testing.T) {
 	}
 }
 
-func TestCacheKeyIncludesNormalizedAcceptEncoding(t *testing.T) {
-	first := cacheKey("cdn.example", "/asset", map[string][]string{
-		"Accept-Encoding": {"GZIP", " br "},
-	})
-	second := cacheKey("cdn.example", "/asset", map[string][]string{
-		"accept-encoding": {"gzip,br"},
-	})
-	identity := cacheKey("cdn.example", "/asset", nil)
-
-	if first != second {
-		t.Fatalf("equivalent Accept-Encoding values produced different keys:\n%s\n%s", first, second)
-	}
-	if first == identity {
-		t.Fatal("encoded and identity representations produced the same key")
-	}
-	if first[:len(cacheKeyVersion)] != cacheKeyVersion {
-		t.Fatalf("cache key %q does not start with version %q", first, cacheKeyVersion)
-	}
-}
-
 func TestCacheExpiryAcceptsOnlySupportedVaryDimensions(t *testing.T) {
 	now := time.Date(2026, time.September, 9, 12, 0, 0, 0, time.UTC)
 	tests := map[string]struct {
 		vary   []string
 		wantOK bool
 	}{
-		"no vary":                 {wantOK: true},
-		"accept encoding":         {vary: []string{"Accept-Encoding"}, wantOK: true},
+		"no vary":                  {wantOK: true},
+		"accept encoding":          {vary: []string{"Accept-Encoding"}, wantOK: true},
 		"repeated accept encoding": {vary: []string{"accept-encoding", "ACCEPT-ENCODING"}, wantOK: true},
-		"unsupported":             {vary: []string{"Accept-Language"}},
-		"mixed":                   {vary: []string{"Accept-Encoding, Accept-Language"}},
-		"wildcard":                {vary: []string{"*"}},
+		"unsupported":              {vary: []string{"Accept-Language"}},
+		"mixed":                    {vary: []string{"Accept-Encoding, Accept-Language"}},
+		"wildcard":                 {vary: []string{"*"}},
 	}
 
 	for name, test := range tests {

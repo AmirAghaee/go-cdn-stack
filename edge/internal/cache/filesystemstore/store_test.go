@@ -1,4 +1,4 @@
-package ristrettostore
+package filesystemstore
 
 import (
 	"io"

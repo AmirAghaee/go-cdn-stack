@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cdn"
@@ -142,39 +141,6 @@ func (s *Service) Handle(ctx context.Context, request Request) Response {
 	}
 }
 
-type flight struct {
-	done chan struct{}
-}
-
-type flightGroup struct {
-	mu      sync.Mutex
-	flights map[string]*flight
-}
-
-func (g *flightGroup) join(key string) (*flight, bool) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if existing := g.flights[key]; existing != nil {
-		return existing, false
-	}
-	if g.flights == nil {
-		g.flights = make(map[string]*flight)
-	}
-	created := &flight{done: make(chan struct{})}
-	g.flights[key] = created
-	return created, true
-}
-
-func (g *flightGroup) finish(key string, completed *flight) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if g.flights[key] != completed {
-		return
-	}
-	delete(g.flights, key)
-	close(completed.done)
-}
-
 func responseContentLength(response Response) int64 {
 	value := firstHeader(response.Header, "Content-Length")
 	if value == "" {
@@ -193,122 +159,6 @@ func (s *Service) trackResponse(request Request, host string, response Response,
 		s.metrics.RecordBytesSent(host, response.CacheStatus, count)
 	})
 	return response
-}
-
-type meteredBody struct {
-	body     io.ReadCloser
-	count    int64
-	onFinish func(int64, error)
-	once     sync.Once
-}
-
-func newMeteredBody(body io.ReadCloser, onFinish func(int64, error)) io.ReadCloser {
-	return &meteredBody{body: body, onFinish: onFinish}
-}
-
-func (b *meteredBody) Read(buffer []byte) (int, error) {
-	count, err := b.body.Read(buffer)
-	b.count += int64(count)
-	if err != nil {
-		b.finish(err)
-	}
-	return count, err
-}
-
-func (b *meteredBody) Close() error {
-	err := b.body.Close()
-	b.finish(err)
-	return err
-}
-
-func (b *meteredBody) finish(err error) {
-	b.once.Do(func() { b.onFinish(b.count, err) })
-}
-
-type cacheFillBody struct {
-	body          io.ReadCloser
-	pending       PendingEntry
-	maxObjectSize int64
-	written       int64
-	active        bool
-	finished      bool
-	onError       func()
-}
-
-type flightBody struct {
-	body     io.ReadCloser
-	onFinish func()
-	once     sync.Once
-}
-
-func newFlightBody(body io.ReadCloser, onFinish func()) io.ReadCloser {
-	return &flightBody{body: body, onFinish: onFinish}
-}
-
-func (b *flightBody) Read(buffer []byte) (int, error) {
-	count, err := b.body.Read(buffer)
-	if err != nil {
-		b.once.Do(b.onFinish)
-	}
-	return count, err
-}
-
-func (b *flightBody) Close() error {
-	err := b.body.Close()
-	b.once.Do(b.onFinish)
-	return err
-}
-
-func newCacheFillBody(body io.ReadCloser, pending PendingEntry, maxObjectSize int64, onError func()) io.ReadCloser {
-	return &cacheFillBody{
-		body: body, pending: pending, maxObjectSize: maxObjectSize,
-		active: true, onError: onError,
-	}
-}
-
-func (b *cacheFillBody) Read(buffer []byte) (int, error) {
-	count, readErr := b.body.Read(buffer)
-	if count > 0 && b.active {
-		if b.maxObjectSize > 0 && b.written+int64(count) > b.maxObjectSize {
-			b.abort(false)
-		} else {
-			written, writeErr := b.pending.Write(buffer[:count])
-			b.written += int64(written)
-			if writeErr != nil || written != count {
-				b.abort(true)
-			}
-		}
-	}
-
-	if readErr == io.EOF {
-		b.finished = true
-		if b.active {
-			b.active = false
-			if err := b.pending.Commit(); err != nil {
-				b.onError()
-			}
-		}
-	} else if readErr != nil {
-		b.abort(false)
-	}
-	return count, readErr
-}
-
-func (b *cacheFillBody) Close() error {
-	if !b.finished {
-		b.abort(false)
-	}
-	return b.body.Close()
-}
-
-func (b *cacheFillBody) abort(recordError bool) {
-	if !b.active {
-		return
-	}
-	b.active = false
-	if err := b.pending.Abort(); err != nil || recordError {
-		b.onError()
-	}
 }
 
 func (s *Service) fetch(ctx context.Context, request Request, item cdn.CDN, cacheStatus string) Response {
@@ -346,12 +196,4 @@ func (s *Service) fetch(ctx context.Context, request Request, item cdn.CDN, cach
 		Body:        originResponse.Body,
 		CacheStatus: cacheStatus,
 	}
-}
-
-func cloneHeader(header map[string][]string) map[string][]string {
-	cloned := make(map[string][]string, len(header))
-	for key, values := range header {
-		cloned[key] = append([]string(nil), values...)
-	}
-	return cloned
 }

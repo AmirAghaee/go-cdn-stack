@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cache"
+	cachefilesystem "github.com/AmirAghaee/go-cdn-stack/edge/internal/cache/filesystemstore"
 	cachehttp "github.com/AmirAghaee/go-cdn-stack/edge/internal/cache/httpapi"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cache/originhttp"
-	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cache/ristrettostore"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cdn"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cdn/controlpanelclient"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cdn/filesystemstore"
@@ -35,7 +35,7 @@ func main() {
 	gin.SetMode(cfg.GinMode)
 
 	metrics := observability.NewMetrics()
-	cacheStore, err := ristrettostore.New(cfg.CacheDir, cfg.CleanerIntervalDuration, metrics)
+	cacheStore, err := cachefilesystem.New(cfg.CacheDir, cfg.CleanerIntervalDuration, metrics)
 	if err != nil {
 		log.Fatalf("initialize cache store: %v", err)
 	}

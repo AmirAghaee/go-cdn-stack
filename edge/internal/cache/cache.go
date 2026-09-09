@@ -14,6 +14,8 @@ type Request struct {
 	ClientIP string
 }
 
+// Response carries the selected response stream. The caller must close Body,
+// including when it is not read to EOF.
 type Response struct {
 	StatusCode  int
 	Header      map[string][]string
@@ -34,6 +36,9 @@ type EntryMetadata struct {
 	ExpiresAt  time.Time
 }
 
+// PendingEntry owns an unpublished cache body. The caller must finish it with
+// Commit or Abort. Commit is terminal even when it returns an error; the
+// implementation is responsible for cleaning up its pending resources.
 type PendingEntry interface {
 	io.Writer
 	Commit() error
