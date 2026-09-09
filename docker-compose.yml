@@ -1,4 +1,15 @@
 services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    container_name: dashboard
+    ports:
+      - "3000:80"
+    depends_on:
+      - control-panel
+    restart: unless-stopped
+
   control-panel:
     build:
       context: .

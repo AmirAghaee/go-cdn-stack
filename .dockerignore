@@ -1,0 +1,7 @@
+.git
+.idea
+**/.env
+dashboard/node_modules
+dashboard/dist
+**/*.cache
+**/*.cache.json
