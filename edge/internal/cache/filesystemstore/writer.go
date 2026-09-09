@@ -36,9 +36,7 @@ func (s *Store) Begin(key string, entry cache.EntryMetadata) (cache.PendingEntry
 	tempPath := temp.Name()
 	var oldPath string
 	if value, ok := s.cache.Get(key); ok {
-		if old, ok := value.(metadata); ok {
-			oldPath = old.FilePath
-		}
+		oldPath = value.FilePath
 	}
 	return &pendingEntry{
 		store: s,
@@ -90,8 +88,7 @@ func (p *pendingEntry) Commit() error {
 	}
 	p.store.cache.Wait()
 	current, ok := p.store.cache.Get(p.key)
-	currentMetadata, metadataOK := current.(metadata)
-	if !ok || !metadataOK || currentMetadata.FilePath != p.finalPath {
+	if !ok || current.FilePath != p.finalPath {
 		_ = os.Remove(p.finalPath)
 		return fmt.Errorf("retain cache metadata")
 	}

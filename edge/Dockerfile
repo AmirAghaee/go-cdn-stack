@@ -1,9 +1,8 @@
-FROM golang:1.25 AS builder
+FROM golang:1.27.1 AS builder
 
 WORKDIR /app
 
 ENV GOPROXY=https://goproxy.io,direct
-ENV GOSUMDB=off
 
 COPY edge/ ./
 

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cache"
-	"github.com/dgraph-io/ristretto"
+	"github.com/dgraph-io/ristretto/v2"
 )
 
 type StorageMetrics interface {
@@ -16,7 +16,7 @@ type StorageMetrics interface {
 }
 
 type Store struct {
-	cache           *ristretto.Cache
+	cache           *ristretto.Cache[string, metadata]
 	directory       string
 	cleanerInterval time.Duration
 	metrics         StorageMetrics
@@ -35,11 +35,11 @@ func New(directory string, cleanerInterval time.Duration, metrics StorageMetrics
 		return nil, fmt.Errorf("create cache directory: %w", err)
 	}
 	store := &Store{directory: directory, cleanerInterval: cleanerInterval, metrics: metrics}
-	memory, err := ristretto.NewCache(&ristretto.Config{
+	memory, err := ristretto.NewCache(&ristretto.Config[string, metadata]{
 		NumCounters: 1e7,
 		MaxCost:     1 << 28,
 		BufferItems: 64,
-		OnEvict: func(_ *ristretto.Item) {
+		OnEvict: func(_ *ristretto.Item[metadata]) {
 			store.updateMetrics()
 		},
 	})
@@ -55,8 +55,8 @@ func (s *Store) Get(key string) (cache.Entry, bool) {
 	if !ok {
 		return cache.Entry{}, false
 	}
-	item, ok := value.(metadata)
-	if !ok || !time.Now().Before(item.ExpiresAt) {
+	item := value
+	if !time.Now().Before(item.ExpiresAt) {
 		s.delete(key, item)
 		return cache.Entry{}, false
 	}
