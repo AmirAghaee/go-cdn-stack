@@ -2,8 +2,10 @@ package httpapi
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cache"
@@ -15,6 +17,16 @@ type fakeService struct {
 	response cache.Response
 }
 
+type trackedBody struct {
+	io.Reader
+	closed bool
+}
+
+func (b *trackedBody) Close() error {
+	b.closed = true
+	return nil
+}
+
 func (f *fakeService) Handle(_ context.Context, request cache.Request) cache.Response {
 	f.request = request
 	return f.response
@@ -22,10 +34,11 @@ func (f *fakeService) Handle(_ context.Context, request cache.Request) cache.Res
 
 func TestHandlerMapsHTTPRequestAndApplicationResponse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	body := &trackedBody{Reader: strings.NewReader("image")}
 	service := &fakeService{response: cache.Response{
 		StatusCode: http.StatusCreated,
 		Header:     map[string][]string{"Content-Type": {"image/png"}, "X-Origin": {"one", "two"}},
-		Body:       []byte("image"),
+		Body:       body,
 	}}
 	router := gin.New()
 	New(service).Register(router)
@@ -44,5 +57,8 @@ func TestHandlerMapsHTTPRequestAndApplicationResponse(t *testing.T) {
 	}
 	if values := response.Header().Values("X-Origin"); len(values) != 2 {
 		t.Fatalf("X-Origin values = %v", values)
+	}
+	if !body.closed {
+		t.Fatal("response body was not closed")
 	}
 }

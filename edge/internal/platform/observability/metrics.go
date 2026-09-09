@@ -47,10 +47,10 @@ func (m *Metrics) RecordOriginRequest(host, status string, duration time.Duratio
 	m.originRequestsTotal.WithLabelValues(host, status).Inc()
 	m.originRequestDuration.WithLabelValues(host, status).Observe(duration.Seconds())
 }
-func (m *Metrics) RecordBytesReceived(host string, count int) {
+func (m *Metrics) RecordBytesReceived(host string, count int64) {
 	m.bytesReceived.WithLabelValues(host).Add(float64(count))
 }
-func (m *Metrics) RecordBytesSent(host, cacheStatus string, count int) {
+func (m *Metrics) RecordBytesSent(host, cacheStatus string, count int64) {
 	m.bytesSent.WithLabelValues(host, cacheStatus).Add(float64(count))
 }
 func (m *Metrics) RecordError(host, kind string) { m.errorsTotal.WithLabelValues(host, kind).Inc() }

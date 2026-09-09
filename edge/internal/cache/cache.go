@@ -17,15 +17,27 @@ type Request struct {
 type Response struct {
 	StatusCode  int
 	Header      map[string][]string
-	Body        []byte
+	Body        io.ReadCloser
 	CacheStatus string
 }
 
 type Entry struct {
 	StatusCode int
 	Header     map[string][]string
-	Body       []byte
+	Body       io.ReadCloser
 	ExpiresAt  time.Time
+}
+
+type EntryMetadata struct {
+	StatusCode int
+	Header     map[string][]string
+	ExpiresAt  time.Time
+}
+
+type PendingEntry interface {
+	io.Writer
+	Commit() error
+	Abort() error
 }
 
 type OriginRequest struct {
@@ -39,7 +51,8 @@ type OriginRequest struct {
 }
 
 type OriginResponse struct {
-	StatusCode int
-	Header     map[string][]string
-	Body       []byte
+	StatusCode    int
+	Header        map[string][]string
+	Body          io.ReadCloser
+	ContentLength int64
 }

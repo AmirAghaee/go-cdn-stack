@@ -2,10 +2,19 @@ package httpapi
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"sync"
 
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cache"
 	"github.com/gin-gonic/gin"
 )
+
+const streamBufferSize = 32 * 1024
+
+var streamBufferPool = sync.Pool{
+	New: func() any { return make([]byte, streamBufferSize) },
+}
 
 type Service interface {
 	Handle(context.Context, cache.Request) cache.Response
@@ -31,5 +40,12 @@ func (h *Handler) handle(c *gin.Context) {
 			c.Writer.Header().Add(key, value)
 		}
 	}
-	c.Data(response.StatusCode, c.Writer.Header().Get("Content-Type"), response.Body)
+	defer response.Body.Close()
+	c.Status(response.StatusCode)
+	c.Writer.Flush()
+	buffer := streamBufferPool.Get().([]byte)
+	defer streamBufferPool.Put(buffer)
+	if _, err := io.CopyBuffer(c.Writer, response.Body, buffer); err != nil {
+		_ = c.Error(fmt.Errorf("stream edge response: %w", err))
+	}
 }

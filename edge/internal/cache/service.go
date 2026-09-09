@@ -2,9 +2,13 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cdn"
@@ -16,7 +20,7 @@ type CDNStore interface {
 
 type Store interface {
 	Get(string) (Entry, bool)
-	Set(string, Entry) error
+	Begin(string, EntryMetadata) (PendingEntry, error)
 }
 
 type OriginClient interface {
@@ -28,21 +32,29 @@ type Metrics interface {
 	RecordCacheHit(host string)
 	RecordCacheMiss(host string)
 	RecordOriginRequest(host, status string, duration time.Duration)
-	RecordBytesReceived(host string, count int)
-	RecordBytesSent(host, cacheStatus string, count int)
+	RecordBytesReceived(host string, count int64)
+	RecordBytesSent(host, cacheStatus string, count int64)
 	RecordError(host, kind string)
 }
 
 type Service struct {
-	cdns    CDNStore
-	cache   Store
-	origin  OriginClient
-	metrics Metrics
-	now     func() time.Time
+	cdns          CDNStore
+	cache         Store
+	origin        OriginClient
+	metrics       Metrics
+	maxObjectSize int64
+	now           func() time.Time
 }
 
-func NewService(cdns CDNStore, store Store, origin OriginClient, metrics Metrics) *Service {
-	return &Service{cdns: cdns, cache: store, origin: origin, metrics: metrics, now: time.Now}
+func NewService(cdns CDNStore, store Store, origin OriginClient, metrics Metrics, maxObjectSize int64) *Service {
+	return &Service{
+		cdns:          cdns,
+		cache:         store,
+		origin:        origin,
+		metrics:       metrics,
+		maxObjectSize: maxObjectSize,
+		now:           time.Now,
+	}
 }
 
 func (s *Service) Handle(ctx context.Context, request Request) Response {
@@ -54,48 +66,164 @@ func (s *Service) Handle(ctx context.Context, request Request) Response {
 		response := Response{
 			StatusCode:  http.StatusBadGateway,
 			Header:      map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
-			Body:        []byte(fmt.Sprintf("Unknown host: %s", request.Host)),
+			Body:        io.NopCloser(strings.NewReader(fmt.Sprintf("Unknown host: %s", request.Host))),
 			CacheStatus: "error",
 		}
-		s.recordResponse(request, host, response, startedAt)
-		return response
+		return s.trackResponse(request, host, response, startedAt)
 	}
 
 	if request.Method != http.MethodGet {
 		response := s.fetch(ctx, request, item, "proxy")
-		s.recordResponse(request, host, response, startedAt)
-		return response
+		return s.trackResponse(request, host, response, startedAt)
 	}
 
 	if shouldBypassCache(request) {
 		response := s.fetch(ctx, request, item, "bypass")
-		s.recordResponse(request, host, response, startedAt)
-		return response
+		return s.trackResponse(request, host, response, startedAt)
 	}
 
 	key := cacheKey(host, request.URI, request.Header)
-	if cached, found := s.cache.Get(key); found && s.now().Before(cached.ExpiresAt) {
-		s.metrics.RecordCacheHit(host)
-		response := Response{StatusCode: cached.StatusCode, Header: cloneHeader(cached.Header), Body: cached.Body, CacheStatus: "hit"}
-		s.recordResponse(request, host, response, startedAt)
-		return response
+	if cached, found := s.cache.Get(key); found {
+		if s.now().Before(cached.ExpiresAt) {
+			s.metrics.RecordCacheHit(host)
+			response := Response{StatusCode: cached.StatusCode, Header: cloneHeader(cached.Header), Body: cached.Body, CacheStatus: "hit"}
+			return s.trackResponse(request, host, response, startedAt)
+		}
+		_ = cached.Body.Close()
 	}
 
 	s.metrics.RecordCacheMiss(host)
 	response := s.fetch(ctx, request, item, "miss")
 	if expiresAt, cacheable := cacheExpiry(s.now(), item.CacheTTL(), response); cacheable {
-		entry := Entry{
+		entry := EntryMetadata{
 			StatusCode: response.StatusCode,
 			Header:     cloneHeader(response.Header),
-			Body:       append([]byte(nil), response.Body...),
 			ExpiresAt:  expiresAt,
 		}
-		if err := s.cache.Set(key, entry); err != nil {
-			s.metrics.RecordError(host, "cache_write")
+		if s.maxObjectSize <= 0 || responseContentLength(response) <= s.maxObjectSize {
+			pending, err := s.cache.Begin(key, entry)
+			if err != nil {
+				s.metrics.RecordError(host, "cache_write")
+			} else {
+				response.Body = newCacheFillBody(response.Body, pending, s.maxObjectSize, func() {
+					s.metrics.RecordError(host, "cache_write")
+				})
+			}
 		}
 	}
-	s.recordResponse(request, host, response, startedAt)
+	return s.trackResponse(request, host, response, startedAt)
+}
+
+func responseContentLength(response Response) int64 {
+	value := firstHeader(response.Header, "Content-Length")
+	if value == "" {
+		return -1
+	}
+	size, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || size < 0 {
+		return -1
+	}
+	return size
+}
+
+func (s *Service) trackResponse(request Request, host string, response Response, startedAt time.Time) Response {
+	response.Body = newMeteredBody(response.Body, func(count int64, _ error) {
+		s.metrics.RecordRequest(host, request.Method, strconv.Itoa(response.StatusCode), s.now().Sub(startedAt))
+		s.metrics.RecordBytesSent(host, response.CacheStatus, count)
+	})
 	return response
+}
+
+type meteredBody struct {
+	body     io.ReadCloser
+	count    int64
+	onFinish func(int64, error)
+	once     sync.Once
+}
+
+func newMeteredBody(body io.ReadCloser, onFinish func(int64, error)) io.ReadCloser {
+	return &meteredBody{body: body, onFinish: onFinish}
+}
+
+func (b *meteredBody) Read(buffer []byte) (int, error) {
+	count, err := b.body.Read(buffer)
+	b.count += int64(count)
+	if err != nil {
+		b.finish(err)
+	}
+	return count, err
+}
+
+func (b *meteredBody) Close() error {
+	err := b.body.Close()
+	b.finish(err)
+	return err
+}
+
+func (b *meteredBody) finish(err error) {
+	b.once.Do(func() { b.onFinish(b.count, err) })
+}
+
+type cacheFillBody struct {
+	body          io.ReadCloser
+	pending       PendingEntry
+	maxObjectSize int64
+	written       int64
+	active        bool
+	finished      bool
+	onError       func()
+}
+
+func newCacheFillBody(body io.ReadCloser, pending PendingEntry, maxObjectSize int64, onError func()) io.ReadCloser {
+	return &cacheFillBody{
+		body: body, pending: pending, maxObjectSize: maxObjectSize,
+		active: true, onError: onError,
+	}
+}
+
+func (b *cacheFillBody) Read(buffer []byte) (int, error) {
+	count, readErr := b.body.Read(buffer)
+	if count > 0 && b.active {
+		if b.maxObjectSize > 0 && b.written+int64(count) > b.maxObjectSize {
+			b.abort(false)
+		} else {
+			written, writeErr := b.pending.Write(buffer[:count])
+			b.written += int64(written)
+			if writeErr != nil || written != count {
+				b.abort(true)
+			}
+		}
+	}
+
+	if readErr == io.EOF {
+		b.finished = true
+		if b.active {
+			b.active = false
+			if err := b.pending.Commit(); err != nil {
+				b.onError()
+			}
+		}
+	} else if readErr != nil {
+		b.abort(false)
+	}
+	return count, readErr
+}
+
+func (b *cacheFillBody) Close() error {
+	if !b.finished {
+		b.abort(false)
+	}
+	return b.body.Close()
+}
+
+func (b *cacheFillBody) abort(recordError bool) {
+	if !b.active {
+		return
+	}
+	b.active = false
+	if err := b.pending.Abort(); err != nil || recordError {
+		b.onError()
+	}
 }
 
 func (s *Service) fetch(ctx context.Context, request Request, item cdn.CDN, cacheStatus string) Response {
@@ -110,25 +238,29 @@ func (s *Service) fetch(ctx context.Context, request Request, item cdn.CDN, cach
 		return Response{
 			StatusCode:  http.StatusBadGateway,
 			Header:      map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
-			Body:        []byte("Error forwarding request"),
+			Body:        io.NopCloser(strings.NewReader("Error forwarding request")),
 			CacheStatus: cacheStatus,
 		}
 	}
 
 	status := strconv.Itoa(originResponse.StatusCode)
-	s.metrics.RecordOriginRequest(item.Domain(), status, s.now().Sub(startedAt))
-	s.metrics.RecordBytesReceived(item.Domain(), len(originResponse.Body))
+	originResponse.Body = newMeteredBody(originResponse.Body, func(count int64, err error) {
+		s.metrics.RecordOriginRequest(item.Domain(), status, s.now().Sub(startedAt))
+		s.metrics.RecordBytesReceived(item.Domain(), count)
+		if err != nil && !errors.Is(err, io.EOF) {
+			s.metrics.RecordError(item.Domain(), "origin_response")
+		}
+	})
+	header := cloneHeader(originResponse.Header)
+	if originResponse.ContentLength >= 0 && firstHeader(header, "Content-Length") == "" {
+		header["Content-Length"] = []string{strconv.FormatInt(originResponse.ContentLength, 10)}
+	}
 	return Response{
 		StatusCode:  originResponse.StatusCode,
-		Header:      cloneHeader(originResponse.Header),
+		Header:      header,
 		Body:        originResponse.Body,
 		CacheStatus: cacheStatus,
 	}
-}
-
-func (s *Service) recordResponse(request Request, host string, response Response, startedAt time.Time) {
-	s.metrics.RecordRequest(host, request.Method, strconv.Itoa(response.StatusCode), s.now().Sub(startedAt))
-	s.metrics.RecordBytesSent(host, response.CacheStatus, len(response.Body))
 }
 
 func cloneHeader(header map[string][]string) map[string][]string {

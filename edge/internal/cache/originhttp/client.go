@@ -3,7 +3,6 @@ package originhttp
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -44,12 +43,12 @@ func (c *Client) Fetch(ctx context.Context, request cache.OriginRequest) (cache.
 	if err != nil {
 		return cache.OriginResponse{}, fmt.Errorf("execute origin request: %w", err)
 	}
-	defer response.Body.Close()
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		return cache.OriginResponse{}, fmt.Errorf("read origin response: %w", err)
-	}
-	return cache.OriginResponse{StatusCode: response.StatusCode, Header: cloneHeader(response.Header), Body: body}, nil
+	return cache.OriginResponse{
+		StatusCode:    response.StatusCode,
+		Header:        cloneHeader(response.Header),
+		Body:          response.Body,
+		ContentLength: response.ContentLength,
+	}, nil
 }
 
 func cloneHeader(header map[string][]string) map[string][]string {

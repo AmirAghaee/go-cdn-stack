@@ -1,6 +1,8 @@
 package ristrettostore
 
 import (
+	"io"
+	"os"
 	"testing"
 	"time"
 
@@ -18,21 +20,67 @@ func TestSetPersistsAndReturnsResponse(t *testing.T) {
 	}
 	defer store.Close()
 
-	want := cache.Entry{
+	want := cache.EntryMetadata{
 		StatusCode: 201,
 		Header:     map[string][]string{"Content-Type": {"image/png"}},
-		Body:       []byte("image"),
 		ExpiresAt:  time.Now().Add(time.Minute),
 	}
-	if err := store.Set("cdn.example/asset", want); err != nil {
-		t.Fatalf("Set() error = %v", err)
+	pending, err := store.Begin("cdn.example/asset", want)
+	if err != nil {
+		t.Fatalf("Begin() error = %v", err)
+	}
+	if _, err := pending.Write([]byte("image")); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	if _, found := store.Get("cdn.example/asset"); found {
+		t.Fatal("cache entry became visible before commit")
+	}
+	if err := pending.Commit(); err != nil {
+		t.Fatalf("Commit() error = %v", err)
 	}
 	store.cache.Wait()
 	got, ok := store.Get("cdn.example/asset")
 	if !ok {
 		t.Fatal("Get() found = false")
 	}
-	if got.StatusCode != want.StatusCode || string(got.Body) != string(want.Body) {
-		t.Fatalf("Get() = %#v", got)
+	if _, ok := got.Body.(*os.File); !ok {
+		t.Fatalf("cached body type = %T, want *os.File", got.Body)
+	}
+	body, err := io.ReadAll(got.Body)
+	if err != nil {
+		t.Fatalf("read cached body: %v", err)
+	}
+	if err := got.Body.Close(); err != nil {
+		t.Fatalf("close cached body: %v", err)
+	}
+	if got.StatusCode != want.StatusCode || string(body) != "image" {
+		t.Fatalf("Get() status=%d body=%q", got.StatusCode, body)
+	}
+}
+
+func TestAbortRemovesTemporaryBody(t *testing.T) {
+	directory := t.TempDir()
+	store, err := New(directory, time.Minute, fakeStorageMetrics{})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer store.Close()
+
+	pending, err := store.Begin("cdn.example/asset", cache.EntryMetadata{ExpiresAt: time.Now().Add(time.Minute)})
+	if err != nil {
+		t.Fatalf("Begin() error = %v", err)
+	}
+	if _, err := pending.Write([]byte("partial")); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	if err := pending.Abort(); err != nil {
+		t.Fatalf("Abort() error = %v", err)
+	}
+	files, err := os.ReadDir(directory)
+	if err != nil {
+		t.Fatalf("ReadDir() error = %v", err)
+	}
+	if len(files) != 0 {
+		t.Fatalf("temporary files remain: %v", files)
 	}
 }

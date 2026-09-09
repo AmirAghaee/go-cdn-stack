@@ -61,7 +61,13 @@ func main() {
 	}
 	initialCancel()
 
-	cacheService := cache.NewService(cdnStore, cacheStore, originhttp.New(sharedHTTPClient), metrics)
+	cacheService := cache.NewService(
+		cdnStore,
+		cacheStore,
+		originhttp.New(sharedHTTPClient),
+		metrics,
+		cfg.CacheMaxObjectSizeBytes,
+	)
 	publicServer := httpserver.NewPublic(cfg.AppCacheURL, cachehttp.New(cacheService))
 	internalServer := httpserver.NewInternal(cfg.AppInternalURL)
 

@@ -34,6 +34,17 @@ type metadata struct {
 	StatusCode int                 `json:"status_code,omitempty"`
 }
 
+type pendingEntry struct {
+	store     *Store
+	key       string
+	metadata  metadata
+	file      *os.File
+	tempPath  string
+	finalPath string
+	oldPath   string
+	closed    bool
+}
+
 func New(directory string, cleanerInterval time.Duration, metrics StorageMetrics) (*Store, error) {
 	if err := os.MkdirAll(directory, 0755); err != nil {
 		return nil, fmt.Errorf("create cache directory: %w", err)
@@ -64,7 +75,7 @@ func (s *Store) Get(key string) (cache.Entry, bool) {
 		s.delete(key, item)
 		return cache.Entry{}, false
 	}
-	body, err := os.ReadFile(item.FilePath)
+	body, err := os.Open(item.FilePath)
 	if err != nil {
 		s.delete(key, item)
 		return cache.Entry{}, false
@@ -73,28 +84,122 @@ func (s *Store) Get(key string) (cache.Entry, bool) {
 	if statusCode == 0 {
 		statusCode = 200
 	}
-	return cache.Entry{StatusCode: statusCode, Header: item.Header, Body: body, ExpiresAt: item.ExpiresAt}, true
+	return cache.Entry{
+		StatusCode: statusCode,
+		Header:     item.Header,
+		Body:       body,
+		ExpiresAt:  item.ExpiresAt,
+	}, true
 }
 
-func (s *Store) Set(key string, entry cache.Entry) error {
+func (s *Store) Begin(key string, entry cache.EntryMetadata) (cache.PendingEntry, error) {
 	if !time.Now().Before(entry.ExpiresAt) {
-		return nil
+		return nil, fmt.Errorf("cache entry is already expired")
 	}
 	digest := sha256.Sum256([]byte(key))
-	cacheFile := filepath.Join(s.directory, fmt.Sprintf("%x.cache", digest))
-	if err := writeAtomic(cacheFile, entry.Body, 0644); err != nil {
-		return fmt.Errorf("write cache body: %w", err)
-	}
-	item := metadata{Key: key, FilePath: cacheFile, Header: entry.Header, ExpiresAt: entry.ExpiresAt, StatusCode: entry.StatusCode}
-	data, err := json.MarshalIndent(item, "", "  ")
+	prefix := fmt.Sprintf("%x-", digest)
+	temp, err := os.CreateTemp(s.directory, prefix+"*.tmp")
 	if err != nil {
+		return nil, fmt.Errorf("create cache body: %w", err)
+	}
+	tempPath := temp.Name()
+	var oldPath string
+	if value, ok := s.cache.Get(key); ok {
+		if old, ok := value.(metadata); ok {
+			oldPath = old.FilePath
+		}
+	}
+	return &pendingEntry{
+		store: s,
+		key:   key,
+		metadata: metadata{
+			Key: key, Header: entry.Header, ExpiresAt: entry.ExpiresAt,
+			StatusCode: entry.StatusCode,
+		},
+		file: temp, tempPath: tempPath, oldPath: oldPath,
+		finalPath: strings.TrimSuffix(tempPath, ".tmp") + ".cache",
+	}, nil
+}
+
+func (p *pendingEntry) Write(data []byte) (int, error) {
+	if p.closed {
+		return 0, os.ErrClosed
+	}
+	return p.file.Write(data)
+}
+
+func (p *pendingEntry) Commit() error {
+	if p.closed {
+		return os.ErrClosed
+	}
+	p.closed = true
+	if !time.Now().Before(p.metadata.ExpiresAt) {
+		_ = p.file.Close()
+		_ = os.Remove(p.tempPath)
+		return nil
+	}
+	if err := p.file.Chmod(0644); err != nil {
+		_ = p.file.Close()
+		_ = os.Remove(p.tempPath)
+		return fmt.Errorf("set cache body permissions: %w", err)
+	}
+	if err := p.file.Close(); err != nil {
+		_ = os.Remove(p.tempPath)
+		return fmt.Errorf("close cache body: %w", err)
+	}
+	if err := os.Rename(p.tempPath, p.finalPath); err != nil {
+		_ = os.Remove(p.tempPath)
+		return fmt.Errorf("publish cache body: %w", err)
+	}
+
+	p.metadata.FilePath = p.finalPath
+	if accepted := p.store.cache.SetWithTTL(p.key, p.metadata, 1, time.Until(p.metadata.ExpiresAt)); !accepted {
+		_ = os.Remove(p.finalPath)
+		return fmt.Errorf("admit cache metadata")
+	}
+	p.store.cache.Wait()
+	current, ok := p.store.cache.Get(p.key)
+	currentMetadata, metadataOK := current.(metadata)
+	if !ok || !metadataOK || currentMetadata.FilePath != p.finalPath {
+		_ = os.Remove(p.finalPath)
+		return fmt.Errorf("retain cache metadata")
+	}
+
+	data, err := json.MarshalIndent(p.metadata, "", "  ")
+	if err != nil {
+		p.store.cache.Del(p.key)
+		p.store.cache.Wait()
+		_ = os.Remove(p.finalPath)
 		return fmt.Errorf("encode cache metadata: %w", err)
 	}
-	if err := writeAtomic(cacheFile+".json", data, 0644); err != nil {
+	metaPath := p.store.metadataPath(p.key)
+	if err := writeAtomic(metaPath, data, 0644); err != nil {
+		p.store.cache.Del(p.key)
+		p.store.cache.Wait()
+		_ = os.Remove(p.finalPath)
 		return fmt.Errorf("write cache metadata: %w", err)
 	}
-	s.cache.SetWithTTL(key, item, 1, time.Until(entry.ExpiresAt))
-	s.updateMetrics()
+
+	if p.oldPath != "" && p.oldPath != p.finalPath {
+		_ = os.Remove(p.oldPath)
+	}
+	p.store.updateMetrics()
+	return nil
+}
+
+func (p *pendingEntry) Abort() error {
+	if p.closed {
+		return nil
+	}
+	p.closed = true
+	closeErr := p.file.Close()
+	removeErr := os.Remove(p.tempPath)
+	if closeErr != nil {
+		return fmt.Errorf("close temporary cache body: %w", closeErr)
+	}
+	if removeErr != nil && !os.IsNotExist(removeErr) {
+		return fmt.Errorf("remove temporary cache body: %w", removeErr)
+	}
 	return nil
 }
 
@@ -170,10 +275,15 @@ func (s *Store) cleanExpiredFiles() {
 func (s *Store) delete(key string, item metadata) {
 	if item.FilePath != "" {
 		_ = os.Remove(item.FilePath)
-		_ = os.Remove(item.FilePath + ".json")
 	}
+	_ = os.Remove(s.metadataPath(key))
 	s.cache.Del(key)
 	s.updateMetrics()
+}
+
+func (s *Store) metadataPath(key string) string {
+	digest := sha256.Sum256([]byte(key))
+	return filepath.Join(s.directory, fmt.Sprintf("%x.cache.json", digest))
 }
 
 func (s *Store) updateMetrics() {
