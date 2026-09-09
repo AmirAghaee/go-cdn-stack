@@ -1,4 +1,4 @@
-import { Globe2, LayoutDashboard, LogOut, Menu, ShieldCheck, Users, X, Zap } from 'lucide-react'
+import { Activity, Globe2, LayoutDashboard, LogOut, Menu, ShieldCheck, Users, X, Zap } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth-context'
@@ -6,12 +6,14 @@ import { useAuth } from '../lib/auth-context'
 const navigation = [
   { to: '/', label: 'Overview', icon: LayoutDashboard },
   { to: '/cdns', label: 'CDN Management', icon: Globe2 },
+  { to: '/health', label: 'Node Health', icon: Activity },
   { to: '/users', label: 'Users', icon: Users },
 ]
 
 const titles: Record<string, { title: string, eyebrow: string }> = {
   '/': { title: 'Network overview', eyebrow: 'Command center' },
   '/cdns': { title: 'CDN configurations', eyebrow: 'Traffic delivery' },
+  '/health': { title: 'Node health', eyebrow: 'Live infrastructure' },
   '/users': { title: 'Team access', eyebrow: 'Administration' },
 }
 

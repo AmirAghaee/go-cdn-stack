@@ -1,4 +1,4 @@
-import type { CDN, CDNInput, LoginResponse, MessageResponse, User } from '../types'
+import type { CDN, CDNInput, LoginResponse, MessageResponse, NodeHealth, User } from '../types'
 
 const API_BASE = '/control-api'
 
@@ -84,4 +84,5 @@ export const api = {
   }),
   deleteCDN: (id: string) => request<void>(`/api/cdns/${id}`, { method: 'DELETE' }),
   refreshSnapshot: () => request<MessageResponse>('/api/snapshot', { method: 'POST' }),
+  listNodeHealth: () => request<NodeHealth[]>('/api/health/nodes'),
 }

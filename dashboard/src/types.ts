@@ -27,3 +27,12 @@ export interface LoginResponse {
 export interface MessageResponse {
   message: string
 }
+
+export interface NodeHealth {
+  id: string
+  service: string
+  instance: string
+  status: string
+  timestamp: string
+  version: string
+}

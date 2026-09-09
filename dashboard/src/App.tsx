@@ -4,6 +4,7 @@ import { useAuth } from './lib/auth-context'
 import { CDNsPage } from './pages/CDNsPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
+import { NodeHealthPage } from './pages/NodeHealthPage'
 import { UsersPage } from './pages/UsersPage'
 
 function RequireAuth() {
@@ -24,6 +25,7 @@ export function App() {
         <Route element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
           <Route path="cdns" element={<CDNsPage />} />
+          <Route path="health" element={<NodeHealthPage />} />
           <Route path="users" element={<UsersPage />} />
         </Route>
       </Route>
