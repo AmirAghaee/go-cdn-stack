@@ -6,6 +6,7 @@ This project implements a **Content Delivery Network (CDN)** system with the fol
 - **React + Tailwind CSS** (administration dashboard)
 - **MongoDB** (Control Panel persistence)
 - **NATS** (messaging bus for events & health checks)
+- **Prometheus** (edge metrics collection and storage)
 - **Monorepo** structure with multiple services
 
 ## 📂 Repository Structure
@@ -57,6 +58,10 @@ docker compose up --build
 Open the dashboard at [http://localhost:3000](http://localhost:3000). The
 dashboard proxies API requests to the control-panel container, so no separate
 browser-side API configuration is required.
+
+Prometheus is available at [http://localhost:9090](http://localhost:9090). It
+scrapes the edge metrics endpoint every 15 seconds and retains data for 30 days
+in the persistent `prometheus_data` Docker volume.
 
 Docker Compose uses a development-only JWT secret by default. For a shared or
 production deployment, set a strong `JWT_SECRET` in the environment or copy the

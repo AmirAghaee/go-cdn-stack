@@ -48,6 +48,22 @@ services:
       - edge_cache:/root/cache
     restart: unless-stopped
 
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - edge
+    restart: unless-stopped
+
   # origin:
   #   build:
   #     context: .
@@ -80,3 +96,4 @@ services:
 volumes:
   mongo_data:
   edge_cache:
+  prometheus_data:
