@@ -1,18 +1,33 @@
 package cache
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"strings"
+
+	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cdn"
 )
 
-const cacheKeyVersion = "v2"
+const cacheKeyVersion = "v3"
 
-func cacheKey(host, uri string, header map[string][]string) string {
+func cacheKey(item cdn.CDN, uri string, header map[string][]string) string {
 	acceptEncoding := normalizeAcceptEncoding(headerValues(header, "Accept-Encoding"))
+	configuration := sha256.Sum256([]byte(fmt.Sprintf(
+		"id=%d:%s|domain=%d:%s|origin=%d:%s|active=%t|ttl=%d",
+		len(item.ID()),
+		item.ID(),
+		len(item.Domain()),
+		item.Domain(),
+		len(item.Origin()),
+		item.Origin(),
+		item.IsActive(),
+		item.CacheTTL(),
+	)))
 	return fmt.Sprintf(
-		"%s|host=%d:%s|uri=%d:%s|accept-encoding=%d:%s",
+		"%s|configuration=%x|host=%d:%s|uri=%d:%s|accept-encoding=%d:%s",
 		cacheKeyVersion,
-		len(host), host,
+		configuration,
+		len(item.Domain()), item.Domain(),
 		len(uri), uri,
 		len(acceptEncoding), acceptEncoding,
 	)

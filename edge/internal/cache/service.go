@@ -84,7 +84,7 @@ func (s *Service) Handle(ctx context.Context, request Request) Response {
 		return s.trackResponse(request, host, response, startedAt)
 	}
 
-	key := cacheKey(host, request.URI, request.Header)
+	key := cacheKey(item, request.URI, request.Header)
 	missRecorded := false
 	for {
 		if cached, found := s.cache.Get(key); found {

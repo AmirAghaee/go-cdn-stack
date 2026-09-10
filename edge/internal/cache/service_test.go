@@ -212,8 +212,62 @@ func TestCacheMissPreservesRequestURIAndHeaders(t *testing.T) {
 	if got := origin.request.Header["X-Test-Header"][0]; got != "preserved" {
 		t.Fatalf("origin header = %q", got)
 	}
-	if _, ok := store.items[cacheKey("cdn.example", "/asset?id=7", nil)]; !ok {
+	if _, ok := store.items[cacheKey(item, "/asset?id=7", nil)]; !ok {
 		t.Fatal("cache entry was not stored with the complete request URI")
+	}
+}
+
+func TestConfigurationChangesDoNotReuseCachedContent(t *testing.T) {
+	oldItem, err := cdn.New("old-id", "cdn.example", "http://old-origin.example", true, 60)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := map[string]struct {
+		id     string
+		origin string
+		ttl    uint
+	}{
+		"origin changed":       {id: "old-id", origin: "http://new-origin.example", ttl: 60},
+		"TTL disabled":         {id: "old-id", origin: "http://old-origin.example", ttl: 0},
+		"domain was recreated": {id: "new-id", origin: "http://old-origin.example", ttl: 60},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			currentItem, createErr := cdn.New(test.id, oldItem.Domain(), test.origin, true, test.ttl)
+			if createErr != nil {
+				t.Fatal(createErr)
+			}
+			store := &fakeCacheStore{items: map[string]Entry{
+				cacheKey(oldItem, "/asset", nil): {
+					StatusCode: http.StatusOK,
+					Header:     map[string][]string{"Content-Type": {"image/png"}},
+					Body:       stream("old-content"),
+					ExpiresAt:  time.Now().Add(time.Hour),
+				},
+			}}
+			origin := &fakeOrigin{responses: []OriginResponse{originResponse("current-content")}}
+			service := NewService(fakeCDNStore{item: currentItem}, store, origin, fakeMetrics{}, 0)
+
+			response := service.Handle(context.Background(), Request{
+				Method: http.MethodGet,
+				Host:   currentItem.Domain(),
+				URI:    "/asset",
+			})
+
+			if got := readResponseBody(t, response); got != "current-content" {
+				t.Fatalf("response body = %q, want current origin content", got)
+			}
+			if response.CacheStatus != "miss" {
+				t.Fatalf("cache status = %q, want miss", response.CacheStatus)
+			}
+			if origin.calls != 1 {
+				t.Fatalf("origin calls = %d, want 1", origin.calls)
+			}
+			if test.ttl == 0 && store.begins != 0 {
+				t.Fatalf("cache begins = %d, want 0 when caching is disabled", store.begins)
+			}
+		})
 	}
 }
 
@@ -301,7 +355,7 @@ func TestSensitiveRequestsBypassCache(t *testing.T) {
 	for name, header := range tests {
 		t.Run(name, func(t *testing.T) {
 			item := mustCDN(t, 60)
-			key := cacheKey(item.Domain(), "/private", header)
+			key := cacheKey(item, "/private", header)
 			store := &fakeCacheStore{items: map[string]Entry{
 				key: {
 					StatusCode: http.StatusOK,
@@ -474,7 +528,7 @@ func TestCacheEntryIsCommittedOnlyAfterOriginEOF(t *testing.T) {
 	request := Request{Method: http.MethodGet, Host: item.Domain(), URI: "/asset"}
 
 	response := service.Handle(context.Background(), request)
-	key := cacheKey(item.Domain(), request.URI, request.Header)
+	key := cacheKey(item, request.URI, request.Header)
 	if _, found := store.items[key]; found {
 		t.Fatal("cache entry became visible before the origin body reached EOF")
 	}
