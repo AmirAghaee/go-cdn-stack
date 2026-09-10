@@ -20,11 +20,11 @@ services:
     environment:
       APP_URL: 0.0.0.0:9001
       NATS_URL: nats://nats:4222
-      MONGO_URI: mongodb://admin:admin@mongodb:27017/?authSource=admin
+      MONGO_URI: mongodb://admin:admin@mongo:27017/?authSource=admin
       JWT_SECRET: ${JWT_SECRET:-local-development-secret}
     depends_on:
       - nats
-      - mongodb
+      - mongo
     restart: unless-stopped
 
   edge:
@@ -65,9 +65,9 @@ services:
       - "8222:8222"
     restart: unless-stopped
 
-  mongodb:
+  mongo:
     image: mongo:latest
-    container_name: mongodb
+    container_name: mongo
     ports:
       - "27017:27017"
     environment:
