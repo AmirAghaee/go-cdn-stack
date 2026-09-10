@@ -5,6 +5,7 @@ global:
 scrape_configs:
   - job_name: edge
     metrics_path: /metrics
-    static_configs:
-      - targets:
-          - edge:8090
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/edge.json
+        refresh_interval: 30s

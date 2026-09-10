@@ -1,0 +1,8 @@
+[
+  {
+    "targets": ["edge:8090"],
+    "labels": {
+      "edge_node": "edge-local"
+    }
+  }
+]

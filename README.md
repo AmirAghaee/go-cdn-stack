@@ -63,6 +63,25 @@ Prometheus is available at [http://localhost:9090](http://localhost:9090). It
 scrapes the edge metrics endpoint every 15 seconds and retains data for 30 days
 in the persistent `prometheus_data` Docker volume.
 
+Prometheus discovers edge nodes from `prometheus/targets/edge.json`. Add a target
+with its display name to that file and Prometheus will load it within 30 seconds
+without a restart:
+
+```json
+{
+  "targets": ["edge-02:8090"],
+  "labels": { "edge_node": "edge-02" }
+}
+```
+
+Keep each target reachable from the Prometheus container. The Grafana dashboard
+builds its **Edge Node** filter automatically from these labels.
+
+Grafana is available at [http://localhost:3001](http://localhost:3001). Sign in
+as `admin` using `GRAFANA_ADMIN_PASSWORD` (`admin` by default for local
+development). The provisioned **CDN Edge Overview** dashboard visualizes traffic,
+latency, cache efficiency, throughput, origin performance, storage, and errors.
+
 Docker Compose uses a development-only JWT secret by default. For a shared or
 production deployment, set a strong `JWT_SECRET` in the environment or copy the
 root `.env.example` to `.env` and replace its value before starting the stack.
