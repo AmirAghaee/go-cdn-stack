@@ -19,3 +19,18 @@ func TestTrustedProxiesEnvironment(t *testing.T) {
 		}
 	}
 }
+
+func TestOriginAllowedCIDRsEnvironment(t *testing.T) {
+	for _, tt := range []struct {
+		value string
+		want  []string
+	}{
+		{"", []string{}},
+		{"10.20.30.0/24,fd00:1234::/48", []string{"10.20.30.0/24", "fd00:1234::/48"}},
+	} {
+		t.Setenv("ORIGIN_ALLOWED_CIDRS", tt.value)
+		if got := Load().OriginAllowedCIDRs; !reflect.DeepEqual(got, tt.want) {
+			t.Fatalf("ORIGIN_ALLOWED_CIDRS=%q: got %v want %v", tt.value, got, tt.want)
+		}
+	}
+}

@@ -44,10 +44,14 @@ func main() {
 		log.Printf("load cache metadata: %v", err)
 	}
 
-	sharedHTTPClient := &http.Client{Timeout: 30 * time.Second}
+	controlPanelHTTPClient := &http.Client{Timeout: 30 * time.Second}
+	originHTTPClient, err := originhttp.New(30*time.Second, cfg.OriginAllowedCIDRs)
+	if err != nil {
+		log.Fatalf("initialize origin HTTP client: %v", err)
+	}
 	cdnStore := memorystore.New()
 	snapshotService := cdn.NewService(
-		controlpanelclient.New(cfg.ControlPanelURL, cfg.EdgeServiceToken, sharedHTTPClient),
+		controlpanelclient.New(cfg.ControlPanelURL, cfg.EdgeServiceToken, controlPanelHTTPClient),
 		cdnStore,
 		filesystemstore.New(cfg.SnapshotFile),
 		cfg.SyncIntervalDuration,
@@ -64,7 +68,7 @@ func main() {
 	cacheService := cache.NewService(
 		cdnStore,
 		cacheStore,
-		originhttp.New(sharedHTTPClient),
+		originHTTPClient,
 		metrics,
 		cfg.CacheMaxObjectSizeBytes,
 	)

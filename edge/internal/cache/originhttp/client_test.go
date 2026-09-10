@@ -2,6 +2,7 @@ package originhttp
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,20 @@ import (
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cache"
 )
 
+func TestNewDisablesRedirectsAndEnvironmentProxy(t *testing.T) {
+	client, err := New(time.Second, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.httpClient.CheckRedirect(&http.Request{}, nil); !errors.Is(err, http.ErrUseLastResponse) {
+		t.Fatalf("CheckRedirect() error = %v", err)
+	}
+	transport, ok := client.httpClient.Transport.(*http.Transport)
+	if !ok || transport.Proxy != nil {
+		t.Fatal("origin transport can use an unvalidated environment proxy")
+	}
+}
+
 func TestFetchPreservesOriginBasePathQueryAndHeaders(t *testing.T) {
 	var path, query, header string
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -21,7 +36,7 @@ func TestFetchPreservesOriginBasePathQueryAndHeaders(t *testing.T) {
 	}))
 	defer origin.Close()
 
-	client := New(&http.Client{Timeout: time.Second})
+	client := newClient(&http.Client{Timeout: time.Second})
 	response, err := client.Fetch(context.Background(), cache.OriginRequest{
 		Method: http.MethodGet, Origin: origin.URL + "/base", URI: "/asset?id=7",
 		Host: "cdn.example", Header: map[string][]string{"X-Test-Header": {"preserved"}}, ClientIP: "192.0.2.1",
@@ -60,7 +75,7 @@ func TestFetchDoesNotWaitForCompleteOriginBody(t *testing.T) {
 	}))
 	defer origin.Close()
 
-	client := New(&http.Client{Timeout: time.Second})
+	client := newClient(&http.Client{Timeout: time.Second})
 	response, err := client.Fetch(context.Background(), cache.OriginRequest{
 		Method: http.MethodGet, Origin: origin.URL, URI: "/asset", Host: "cdn.example",
 	})
@@ -88,7 +103,7 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestFetchSanitizesBothHops(t *testing.T) {
-	client := New(&http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+	client := newClient(&http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		for _, name := range []string{"Connection", "X-Secret", "TE", "Proxy-Authorization", "Forwarded", "X-Real-IP", "X-Forwarded-Port"} {
 			if r.Header.Get(name) != "" {
 				t.Errorf("forwarded %s", name)
@@ -110,5 +125,32 @@ func TestFetchSanitizesBothHops(t *testing.T) {
 	}
 	if header["X-Secret"][0] != "secret" {
 		t.Fatal("mutated inbound headers")
+	}
+}
+
+func TestFetchReturnsRedirectWithoutFollowingIt(t *testing.T) {
+	calls := 0
+	client := newClient(&http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{
+			StatusCode: http.StatusFound,
+			Header:     http.Header{"Location": {"http://169.254.169.254/latest/meta-data"}},
+			Body:       io.NopCloser(strings.NewReader("redirect")),
+			Request:    r,
+		}, nil
+	})})
+
+	response, err := client.Fetch(context.Background(), cache.OriginRequest{
+		Method: http.MethodGet, Origin: "https://origin.example", URI: "/asset", Host: "cdn.example",
+	})
+	if err != nil {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusFound || calls != 1 {
+		t.Fatalf("status = %d, requests = %d", response.StatusCode, calls)
+	}
+	if len(response.Header["Location"]) != 1 || response.Header["Location"][0] != "http://169.254.169.254/latest/meta-data" {
+		t.Fatalf("location = %v", response.Header["Location"])
 	}
 }

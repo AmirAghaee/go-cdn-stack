@@ -10,6 +10,7 @@ import (
 
 type Config struct {
 	TrustedProxies          []string `mapstructure:"TRUSTED_PROXIES"`
+	OriginAllowedCIDRs      []string `mapstructure:"ORIGIN_ALLOWED_CIDRS"`
 	AppName                 string   `mapstructure:"APP_NAME"`
 	GinMode                 string   `mapstructure:"APP_MODE"`
 	CacheTTL                int      `mapstructure:"CACHE_TTL"`
@@ -36,6 +37,7 @@ func Load() *Config {
 	v.AutomaticEnv()
 	v.SetDefault("APP_NAME", "EDGE01")
 	v.SetDefault("TRUSTED_PROXIES", []string{})
+	v.SetDefault("ORIGIN_ALLOWED_CIDRS", []string{})
 	v.SetDefault("APP_MODE", "debug")
 	v.SetDefault("CACHE_TTL", 10)
 	v.SetDefault("CACHE_DIR", "./cache")
