@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Activity, AlertTriangle, Box, CheckCircle2, Clock3, Radio, RefreshCw, Search, Server, ServerOff, Wifi } from 'lucide-react'
+import { AlertTriangle, Box, CheckCircle2, Clock3, Radio, RefreshCw, Search, Server, ServerOff, Wifi } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Button, EmptyState, inputClass, LoadingRows } from '../components/ui'
 import { api } from '../lib/api'
