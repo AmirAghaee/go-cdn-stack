@@ -1,4 +1,4 @@
-FROM node:20.19.5-alpine3.22 AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -8,7 +8,7 @@ RUN npm ci
 COPY dashboard/ ./
 RUN npm run build
 
-FROM nginx:1.29.1-alpine3.22
+FROM nginx:alpine
 
 COPY dashboard/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html

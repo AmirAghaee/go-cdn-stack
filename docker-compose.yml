@@ -48,14 +48,14 @@ services:
       - edge_cache:/root/cache
     restart: unless-stopped
 
-  origin:
-    build:
-      context: .
-      dockerfile: origin-sample/Dockerfile
-    container_name: origin
-    ports:
-      - "8081:8081"
-    restart: unless-stopped
+  # origin:
+  #   build:
+  #     context: .
+  #     dockerfile: origin-sample/Dockerfile
+  #   container_name: origin
+  #   ports:
+  #     - "8081:8081"
+  #   restart: unless-stopped
 
   nats:
     image: nats
