@@ -9,12 +9,13 @@ import (
 )
 
 type Config struct {
-	AppURL      string        `mapstructure:"APP_URL"`
-	MongoURI    string        `mapstructure:"MONGO_URI"`
-	DB          string        `mapstructure:"MONGO_DB"`
-	NatsURL     string        `mapstructure:"NATS_URL"`
-	JWTSecret   string        `mapstructure:"JWT_SECRET"`
-	JWTDuration time.Duration `mapstructure:"JWT_DURATION"`
+	AppURL           string        `mapstructure:"APP_URL"`
+	MongoURI         string        `mapstructure:"MONGO_URI"`
+	DB               string        `mapstructure:"MONGO_DB"`
+	NatsURL          string        `mapstructure:"NATS_URL"`
+	JWTSecret        string        `mapstructure:"JWT_SECRET"`
+	JWTDuration      time.Duration `mapstructure:"JWT_DURATION"`
+	EdgeServiceToken string        `mapstructure:"EDGE_SERVICE_TOKEN"`
 }
 
 func Load() *Config {
@@ -29,6 +30,7 @@ func Load() *Config {
 	v.SetDefault("NATS_URL", "nats://localhost:4222")
 	v.SetDefault("JWT_SECRET", "default-secret-change-me")
 	v.SetDefault("JWT_DURATION", "24h")
+	v.SetDefault("EDGE_SERVICE_TOKEN", "local-edge-service-token")
 
 	v.SetConfigName(".env")
 	v.SetConfigType("env")

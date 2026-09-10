@@ -47,7 +47,7 @@ func main() {
 	sharedHTTPClient := &http.Client{Timeout: 30 * time.Second}
 	cdnStore := memorystore.New()
 	snapshotService := cdn.NewService(
-		controlpanelclient.New(cfg.ControlPanelURL, cfg.JWTSecret, sharedHTTPClient),
+		controlpanelclient.New(cfg.ControlPanelURL, cfg.EdgeServiceToken, sharedHTTPClient),
 		cdnStore,
 		filesystemstore.New(cfg.SnapshotFile),
 		cfg.SyncIntervalDuration,

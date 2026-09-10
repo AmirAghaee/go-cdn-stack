@@ -21,7 +21,7 @@ type Config struct {
 	AppInternalURL          string   `mapstructure:"APP_INTERNAL_URL"`
 	ControlPanelURL         string   `mapstructure:"CONTROL_PANEL_URL"`
 	NATSURL                 string   `mapstructure:"NATS_URL"`
-	JWTSecret               string   `mapstructure:"JWT_SECRET"`
+	EdgeServiceToken        string   `mapstructure:"EDGE_SERVICE_TOKEN"`
 	SnapshotFile            string   `mapstructure:"CDN_SNAPSHOT_FILE"`
 	SyncInterval            int      `mapstructure:"CDN_SYNC_INTERVAL"`
 
@@ -46,7 +46,7 @@ func Load() *Config {
 	v.SetDefault("APP_INTERNAL_URL", "127.0.0.1:8090")
 	v.SetDefault("CONTROL_PANEL_URL", "http://127.0.0.1:9001")
 	v.SetDefault("NATS_URL", "nats://127.0.0.1:4222")
-	v.SetDefault("JWT_SECRET", "default-secret-change-me")
+	v.SetDefault("EDGE_SERVICE_TOKEN", "local-edge-service-token")
 	v.SetDefault("CDN_SNAPSHOT_FILE", "./cache/cdns.json")
 	v.SetDefault("CDN_SYNC_INTERVAL", 60)
 	v.SetConfigName(".env")

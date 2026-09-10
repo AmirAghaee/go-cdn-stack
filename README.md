@@ -82,9 +82,10 @@ as `admin` using `GRAFANA_ADMIN_PASSWORD` (`admin` by default for local
 development). The provisioned **CDN Edge Overview** dashboard visualizes traffic,
 latency, cache efficiency, throughput, origin performance, storage, and errors.
 
-Docker Compose uses a development-only JWT secret by default. For a shared or
-production deployment, set a strong `JWT_SECRET` in the environment or copy the
-root `.env.example` to `.env` and replace its value before starting the stack.
+Docker Compose uses development-only credentials by default. For a shared or
+production deployment, set strong, different `JWT_SECRET` and `EDGE_SERVICE_TOKEN`
+values in the environment, or copy the root `.env.example` to `.env` and replace
+both values before starting the stack.
 
 ### 1. Clone the repo
 

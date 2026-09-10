@@ -22,6 +22,7 @@ services:
       NATS_URL: nats://nats:4222
       MONGO_URI: mongodb://admin:admin@mongo:27017/?authSource=admin
       JWT_SECRET: ${JWT_SECRET:-local-development-secret}
+      EDGE_SERVICE_TOKEN: ${EDGE_SERVICE_TOKEN:-local-edge-service-token}
     depends_on:
       - nats
       - mongo
@@ -40,7 +41,7 @@ services:
       APP_INTERNAL_URL: 0.0.0.0:8090
       CONTROL_PANEL_URL: http://control-panel:9001
       NATS_URL: nats://nats:4222
-      JWT_SECRET: ${JWT_SECRET:-local-development-secret}
+      EDGE_SERVICE_TOKEN: ${EDGE_SERVICE_TOKEN:-local-edge-service-token}
     depends_on:
       - control-panel
       - nats

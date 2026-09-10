@@ -75,6 +75,7 @@ func main() {
 		identityhttp.New(identityService),
 		cdnhttp.New(cdnService),
 		identityhttp.Auth(tokenManager),
+		identityhttp.ServiceAuth(cfg.EdgeServiceToken),
 		healthhttp.New(healthService),
 	)
 

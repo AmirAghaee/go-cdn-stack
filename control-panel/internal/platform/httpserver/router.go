@@ -7,16 +7,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func New(identityHandler *identityhttp.Handler, cdnHandler *cdnhttp.Handler, auth gin.HandlerFunc, healthHandlers ...*healthhttp.Handler) *gin.Engine {
+func New(identityHandler *identityhttp.Handler, cdnHandler *cdnhttp.Handler, adminAuth, edgeAuth gin.HandlerFunc, healthHandlers ...*healthhttp.Handler) *gin.Engine {
 	router := gin.Default()
 	identityHandler.RegisterPublic(router)
 
 	protected := router.Group("/api")
-	protected.Use(auth)
+	protected.Use(adminAuth)
 	identityHandler.RegisterProtected(protected)
 	cdnHandler.Register(protected)
 	for _, healthHandler := range healthHandlers {
 		healthHandler.Register(protected)
 	}
+
+	edge := router.Group("/edge/v1")
+	edge.Use(edgeAuth)
+	cdnHandler.RegisterSnapshot(edge)
 	return router
 }

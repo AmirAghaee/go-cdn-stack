@@ -25,6 +25,11 @@ func (h *Handler) Register(routes *gin.RouterGroup) {
 	routes.POST("/snapshot", h.refresh)
 }
 
+// RegisterSnapshot exposes only the configuration read required by edges.
+func (h *Handler) RegisterSnapshot(routes *gin.RouterGroup) {
+	routes.GET("/snapshot", h.list)
+}
+
 func (h *Handler) create(c *gin.Context) {
 	var body cdnRequest
 	if err := c.ShouldBindJSON(&body); err != nil {

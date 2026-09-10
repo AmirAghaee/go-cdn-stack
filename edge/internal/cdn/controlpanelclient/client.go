@@ -6,16 +6,14 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cdn"
-	"github.com/AmirAghaee/go-cdn-stack/pkg/jwt"
 )
 
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
-	jwtManager *jwt.Manager
+	baseURL      string
+	httpClient   *http.Client
+	serviceToken string
 }
 
 type responseDTO struct {
@@ -26,25 +24,20 @@ type responseDTO struct {
 	CacheTTL uint   `json:"cache_ttl"`
 }
 
-func New(baseURL, jwtSecret string, httpClient *http.Client) *Client {
+func New(baseURL, serviceToken string, httpClient *http.Client) *Client {
 	return &Client{
-		baseURL:    strings.TrimRight(baseURL, "/"),
-		httpClient: httpClient,
-		jwtManager: jwt.NewJWTManager(jwtSecret, 24*time.Hour),
+		baseURL:      strings.TrimRight(baseURL, "/"),
+		httpClient:   httpClient,
+		serviceToken: serviceToken,
 	}
 }
 
 func (c *Client) Fetch(ctx context.Context) ([]cdn.CDN, error) {
-	token, err := c.jwtManager.Generate("edge", "edge@cdn.internal")
-	if err != nil {
-		return nil, fmt.Errorf("generate service token: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/cdns", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/edge/v1/snapshot", nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+c.serviceToken)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
