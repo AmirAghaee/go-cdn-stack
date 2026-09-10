@@ -1,6 +1,6 @@
 module github.com/AmirAghaee/go-cdn-stack/control-panel
 
-go 1.25.1
+go 1.27.1
 
 require (
 	github.com/AmirAghaee/go-cdn-stack/pkg v0.0.0-20251207113821-a70399bb715a
