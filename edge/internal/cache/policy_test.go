@@ -6,6 +6,51 @@ import (
 	"time"
 )
 
+func TestEvaluateRequestCachePolicy(t *testing.T) {
+	tests := map[string]struct {
+		header           map[string][]string
+		wantBypass       bool
+		wantOnlyIfCached bool
+	}{
+		"ordinary request": {},
+		"only if cached": {
+			header:           map[string][]string{"Cache-Control": {"only-if-cached"}},
+			wantOnlyIfCached: true,
+		},
+		"validator": {
+			header:     map[string][]string{"If-None-Match": {`"asset-v1"`}},
+			wantBypass: true,
+		},
+		"request max age": {
+			header:     map[string][]string{"Cache-Control": {"max-age=10"}},
+			wantBypass: true,
+		},
+		"request min fresh": {
+			header:     map[string][]string{"Cache-Control": {"min-fresh=10"}},
+			wantBypass: true,
+		},
+		"validation forbidden by only if cached": {
+			header:           map[string][]string{"Cache-Control": {"only-if-cached, no-cache"}},
+			wantBypass:       true,
+			wantOnlyIfCached: true,
+		},
+		"only if cached survives malformed extension": {
+			header:           map[string][]string{"Cache-Control": {`only-if-cached, extension="unterminated`}},
+			wantBypass:       true,
+			wantOnlyIfCached: true,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			policy := evaluateRequestCachePolicy(Request{Header: test.header})
+			if policy.bypass != test.wantBypass || policy.onlyIfCached != test.wantOnlyIfCached {
+				t.Fatalf("policy = %+v, want bypass=%t only-if-cached=%t", policy, test.wantBypass, test.wantOnlyIfCached)
+			}
+		})
+	}
+}
+
 func TestCacheExpiryHonorsConfiguredAndOriginFreshness(t *testing.T) {
 	now := time.Date(2026, time.September, 9, 12, 0, 0, 0, time.UTC)
 

@@ -77,13 +77,20 @@ func (s *Service) Handle(ctx context.Context, request Request) Response {
 		return s.trackResponse(request, unknownHostMetricLabel, response, startedAt)
 	}
 	host = item.Domain()
+	requestPolicy := evaluateRequestCachePolicy(request)
 
 	if request.Method != http.MethodGet {
+		if requestPolicy.onlyIfCached {
+			return s.cacheOnlyMiss(request, host, startedAt)
+		}
 		response := s.fetch(ctx, request, item, "proxy")
 		return s.trackResponse(request, host, response, startedAt)
 	}
 
-	if shouldBypassCache(request) {
+	if requestPolicy.bypass {
+		if requestPolicy.onlyIfCached {
+			return s.cacheOnlyMiss(request, host, startedAt)
+		}
 		response := s.fetch(ctx, request, item, "bypass")
 		return s.trackResponse(request, host, response, startedAt)
 	}
@@ -103,6 +110,9 @@ func (s *Service) Handle(ctx context.Context, request Request) Response {
 		if !missRecorded {
 			s.metrics.RecordCacheMiss(host)
 			missRecorded = true
+		}
+		if requestPolicy.onlyIfCached {
+			return s.cacheOnlyMissResponse(request, host, startedAt)
 		}
 
 		flight, leader := s.flights.join(key)
@@ -143,6 +153,21 @@ func (s *Service) Handle(ctx context.Context, request Request) Response {
 		s.flights.finish(key, flight)
 		return s.trackResponse(request, host, response, startedAt)
 	}
+}
+
+func (s *Service) cacheOnlyMiss(request Request, host string, startedAt time.Time) Response {
+	s.metrics.RecordCacheMiss(host)
+	return s.cacheOnlyMissResponse(request, host, startedAt)
+}
+
+func (s *Service) cacheOnlyMissResponse(request Request, host string, startedAt time.Time) Response {
+	response := Response{
+		StatusCode:  http.StatusGatewayTimeout,
+		Header:      map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
+		Body:        io.NopCloser(strings.NewReader("Cache cannot satisfy only-if-cached request")),
+		CacheStatus: "miss",
+	}
+	return s.trackResponse(request, host, response, startedAt)
 }
 
 func responseContentLength(response Response) int64 {

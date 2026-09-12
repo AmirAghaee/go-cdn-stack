@@ -426,7 +426,14 @@ func TestSensitiveRequestsBypassCache(t *testing.T) {
 		"cache control no cache":  {"Cache-Control": {"no-cache"}},
 		"cache control no store":  {"Cache-Control": {"max-age=60, NO-STORE"}},
 		"cache control multiple":  {"cache-control": {"max-age=60", "no-cache"}},
+		"request max age":         {"Cache-Control": {"max-age=10"}},
+		"request min fresh":       {"Cache-Control": {"min-fresh=10"}},
 		"pragma no cache":         {"Pragma": {"no-cache"}},
+		"if match":                {"If-Match": {`"asset-v2"`}},
+		"if none match":           {"If-None-Match": {`"asset-v1"`}},
+		"if modified since":       {"If-Modified-Since": {time.Now().UTC().Format(http.TimeFormat)}},
+		"if unmodified since":     {"If-Unmodified-Since": {time.Now().UTC().Format(http.TimeFormat)}},
+		"if range":                {"If-Range": {`"asset-v1"`}},
 	}
 
 	for name, header := range tests {
@@ -459,6 +466,119 @@ func TestSensitiveRequestsBypassCache(t *testing.T) {
 			}
 			if origin.calls != 1 {
 				t.Fatalf("origin calls = %d", origin.calls)
+			}
+		})
+	}
+}
+
+func TestConditionalRequestUsesOriginPreconditionResultInsteadOfCachedResponse(t *testing.T) {
+	item := mustCDN(t, 60)
+	request := Request{
+		Method: http.MethodGet, Host: item.Domain(), URI: "/asset",
+		Header: map[string][]string{"If-Match": {`"asset-v2"`}},
+	}
+	store := &fakeCacheStore{items: map[string]Entry{
+		cacheKey(item, request.URI, request.Header): {
+			StatusCode: http.StatusOK,
+			Header:     map[string][]string{"Content-Type": {"image/png"}, "ETag": {`"asset-v1"`}},
+			Body:       stream("cached"),
+			ExpiresAt:  time.Now().Add(time.Minute),
+		},
+	}}
+	origin := &fakeOrigin{responses: []OriginResponse{{
+		StatusCode:    http.StatusPreconditionFailed,
+		Header:        map[string][]string{"Content-Type": {"text/plain"}},
+		Body:          stream("precondition failed"),
+		ContentLength: int64(len("precondition failed")),
+	}}}
+	service := NewService(fakeCDNStore{item: item}, store, origin, fakeMetrics{}, 0)
+
+	response := service.Handle(context.Background(), request)
+	body := readResponseBody(t, response)
+	if response.StatusCode != http.StatusPreconditionFailed || response.CacheStatus != "bypass" || body != "precondition failed" {
+		t.Fatalf("response status=%d cache status=%q body=%q", response.StatusCode, response.CacheStatus, body)
+	}
+	if values := origin.request.Header["If-Match"]; len(values) != 1 || values[0] != `"asset-v2"` {
+		t.Fatalf("origin If-Match = %v", values)
+	}
+}
+
+func TestOnlyIfCachedServesFreshCacheHitWithoutOrigin(t *testing.T) {
+	item := mustCDN(t, 60)
+	request := Request{
+		Method: http.MethodGet, Host: item.Domain(), URI: "/asset",
+		Header: map[string][]string{"Cache-Control": {"only-if-cached"}},
+	}
+	store := &fakeCacheStore{items: map[string]Entry{
+		cacheKey(item, request.URI, request.Header): {
+			StatusCode: http.StatusOK,
+			Header:     map[string][]string{"Content-Type": {"image/png"}},
+			Body:       stream("cached"),
+			ExpiresAt:  time.Now().Add(time.Minute),
+		},
+	}}
+	origin := &fakeOrigin{}
+	service := NewService(fakeCDNStore{item: item}, store, origin, fakeMetrics{}, 0)
+
+	response := service.Handle(context.Background(), request)
+	if body := readResponseBody(t, response); response.CacheStatus != "hit" || body != "cached" {
+		t.Fatalf("response cache status=%q body=%q", response.CacheStatus, body)
+	}
+	if origin.calls != 0 {
+		t.Fatalf("origin calls = %d", origin.calls)
+	}
+}
+
+func TestOnlyIfCachedNeverContactsOriginWhenCacheCannotSatisfyRequest(t *testing.T) {
+	tests := map[string]struct {
+		header  map[string][]string
+		cached  bool
+		expires time.Time
+	}{
+		"miss": {
+			header: map[string][]string{"Cache-Control": {"only-if-cached"}},
+		},
+		"stale": {
+			header: map[string][]string{"Cache-Control": {"only-if-cached"}},
+			cached: true, expires: time.Now().Add(-time.Minute),
+		},
+		"requires revalidation": {
+			header: map[string][]string{"Cache-Control": {"only-if-cached, no-cache"}},
+			cached: true, expires: time.Now().Add(time.Minute),
+		},
+		"has validator": {
+			header: map[string][]string{"Cache-Control": {"only-if-cached"}, "If-Match": {`"asset-v2"`}},
+			cached: true, expires: time.Now().Add(time.Minute),
+		},
+		"has freshness constraint": {
+			header: map[string][]string{"Cache-Control": {"only-if-cached, min-fresh=10"}},
+			cached: true, expires: time.Now().Add(time.Minute),
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			item := mustCDN(t, 60)
+			request := Request{Method: http.MethodGet, Host: item.Domain(), URI: "/asset", Header: test.header}
+			store := &fakeCacheStore{items: make(map[string]Entry)}
+			if test.cached {
+				store.items[cacheKey(item, request.URI, request.Header)] = Entry{
+					StatusCode: http.StatusOK,
+					Header:     map[string][]string{"Content-Type": {"image/png"}},
+					Body:       stream("cached"),
+					ExpiresAt:  test.expires,
+				}
+			}
+			origin := &fakeOrigin{}
+			service := NewService(fakeCDNStore{item: item}, store, origin, fakeMetrics{}, 0)
+
+			response := service.Handle(context.Background(), request)
+			body := readResponseBody(t, response)
+			if response.StatusCode != http.StatusGatewayTimeout || response.CacheStatus != "miss" {
+				t.Fatalf("response status=%d cache status=%q body=%q", response.StatusCode, response.CacheStatus, body)
+			}
+			if origin.calls != 0 || store.begins != 0 {
+				t.Fatalf("origin calls=%d cache begins=%d", origin.calls, store.begins)
 			}
 		})
 	}

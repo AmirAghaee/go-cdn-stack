@@ -8,32 +8,64 @@ import (
 	"time"
 )
 
-func shouldBypassCache(request Request) bool {
+type requestCachePolicy struct {
+	bypass       bool
+	onlyIfCached bool
+}
+
+func evaluateRequestCachePolicy(request Request) requestCachePolicy {
+	policy := requestCachePolicy{}
 	if hasHeader(request.Header, "Authorization") ||
 		hasHeader(request.Header, "Cookie") ||
-		hasHeader(request.Header, "Range") {
-		return true
+		hasHeader(request.Header, "Range") ||
+		hasConditionalHeader(request.Header) {
+		policy.bypass = true
 	}
 
 	cacheControl, valid := parseCacheControl(request.Header)
+	_, policy.onlyIfCached = cacheControl["only-if-cached"]
+	if !policy.onlyIfCached {
+		policy.onlyIfCached = hasCacheControlDirective(request.Header, "only-if-cached")
+	}
 	if !valid {
-		return true
+		policy.bypass = true
+		return policy
 	}
-	if _, ok := cacheControl["no-cache"]; ok {
-		return true
-	}
-	if _, ok := cacheControl["no-store"]; ok {
-		return true
+	for _, directive := range []string{"no-cache", "no-store", "max-age", "min-fresh"} {
+		if _, found := cacheControl[directive]; found {
+			policy.bypass = true
+		}
 	}
 
 	for _, value := range headerValues(request.Header, "Pragma") {
 		for _, directive := range splitHeaderList(value) {
 			if strings.EqualFold(strings.TrimSpace(directive), "no-cache") {
-				return true
+				policy.bypass = true
 			}
 		}
 	}
 
+	return policy
+}
+
+func hasConditionalHeader(header map[string][]string) bool {
+	for _, name := range []string{"If-Match", "If-None-Match", "If-Modified-Since", "If-Unmodified-Since", "If-Range"} {
+		if hasHeader(header, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasCacheControlDirective(header map[string][]string, name string) bool {
+	for _, value := range headerValues(header, "Cache-Control") {
+		for _, part := range splitHeaderList(value) {
+			directive, _, _ := strings.Cut(strings.TrimSpace(part), "=")
+			if strings.EqualFold(strings.TrimSpace(directive), name) {
+				return true
+			}
+		}
+	}
 	return false
 }
 
