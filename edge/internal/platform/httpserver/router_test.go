@@ -30,6 +30,10 @@ type interruptedReader struct{}
 
 func (interruptedReader) Read([]byte) (int, error) { return 0, errors.New("upstream interrupted") }
 
+type readinessStub struct{ ready bool }
+
+func (r *readinessStub) Ready() bool { return r.ready }
+
 func TestPublicServerTerminatesInterruptedResponse(t *testing.T) {
 	server := NewPublic("", cachehttp.New(interruptedService{}), testLimits())
 	request := httptest.NewRequest(http.MethodGet, "http://cdn.example/asset", nil)
@@ -62,7 +66,7 @@ func TestPublicServerRecoversOtherPanics(t *testing.T) {
 
 func TestServerAppliesConnectionLimits(t *testing.T) {
 	limits := testLimits()
-	server := NewInternal("127.0.0.1:8090", limits)
+	server := NewInternal("127.0.0.1:8090", &readinessStub{}, limits)
 
 	if server.ReadHeaderTimeout != limits.ReadHeaderTimeout ||
 		server.IdleTimeout != limits.IdleTimeout ||
@@ -72,6 +76,25 @@ func TestServerAppliesConnectionLimits(t *testing.T) {
 	if server.ReadTimeout != 0 || server.WriteTimeout != 0 {
 		t.Fatalf("streaming deadlines = read %v, write %v; want zero", server.ReadTimeout, server.WriteTimeout)
 	}
+}
+
+func TestInternalHealthEndpointsReflectSnapshotReadiness(t *testing.T) {
+	readiness := &readinessStub{}
+	server := NewInternal("", readiness, testLimits())
+
+	assertStatus := func(path string, want int) {
+		t.Helper()
+		response := httptest.NewRecorder()
+		server.Handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://edge.example"+path, nil))
+		if response.Code != want {
+			t.Fatalf("GET %s status = %d, want %d; body=%s", path, response.Code, want, response.Body.String())
+		}
+	}
+
+	assertStatus("/livez", http.StatusOK)
+	assertStatus("/readyz", http.StatusServiceUnavailable)
+	readiness.ready = true
+	assertStatus("/readyz", http.StatusOK)
 }
 
 func TestConnectionLimitClosesExcessConnection(t *testing.T) {

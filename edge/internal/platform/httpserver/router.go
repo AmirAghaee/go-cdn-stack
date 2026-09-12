@@ -22,6 +22,10 @@ type Limits struct {
 	MaxConcurrentRequests int
 }
 
+type Readiness interface {
+	Ready() bool
+}
+
 func NewPublic(address string, handler *cachehttp.Handler, limits Limits) *http.Server {
 	router := newRouter(limits.MaxConcurrentRequests)
 	// Forwarding trust is handled explicitly by the HTTP adapter.
@@ -30,10 +34,20 @@ func NewPublic(address string, handler *cachehttp.Handler, limits Limits) *http.
 	return newServer(address, router, limits)
 }
 
-func NewInternal(address string, limits Limits) *http.Server {
+func NewInternal(address string, readiness Readiness, limits Limits) *http.Server {
 	router := newRouter(limits.MaxConcurrentRequests)
 	// Forwarding trust is handled explicitly by the HTTP adapter.
 	_ = router.SetTrustedProxies(nil)
+	router.GET("/livez", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+	router.GET("/readyz", func(c *gin.Context) {
+		if !readiness.Ready() {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not_ready"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ready"})
+	})
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	return newServer(address, router, limits)
 }

@@ -59,12 +59,55 @@ func TestSyncPersistsBeforeReplacingInMemorySnapshot(t *testing.T) {
 	if _, ok := store.FindByDomain(newItem.Domain()); ok {
 		t.Fatal("unpersisted snapshot was published to readers")
 	}
+	if service.Ready() {
+		t.Fatal("service became ready after failed snapshot persistence")
+	}
 }
 
 func TestLoadLocalAllowsMissingSnapshot(t *testing.T) {
 	service := NewService(&fakeSource{}, &fakeStore{}, &fakeSnapshotStore{loadErr: ErrSnapshotNotFound}, time.Minute)
 	if err := service.LoadLocal(context.Background()); err != nil {
 		t.Fatalf("LoadLocal() error = %v", err)
+	}
+	if service.Ready() {
+		t.Fatal("missing snapshot marked service ready")
+	}
+}
+
+func TestSuccessfulEmptySnapshotMarksServiceReady(t *testing.T) {
+	service := NewService(&fakeSource{}, &fakeStore{}, &fakeSnapshotStore{items: []CDN{}}, time.Minute)
+	if err := service.LoadLocal(context.Background()); err != nil {
+		t.Fatalf("LoadLocal() error = %v", err)
+	}
+	if !service.Ready() {
+		t.Fatal("valid empty snapshot did not mark service ready")
+	}
+}
+
+func TestSuccessfulSyncMarksServiceReady(t *testing.T) {
+	item := mustCDN(t, "cdn.example", "http://origin.example")
+	service := NewService(&fakeSource{items: []CDN{item}}, &fakeStore{}, &fakeSnapshotStore{}, time.Minute)
+
+	if err := service.Sync(context.Background()); err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+	if !service.Ready() {
+		t.Fatal("successful control-panel snapshot did not mark service ready")
+	}
+}
+
+func TestSyncFailureRetainsReadyLastKnownGoodSnapshot(t *testing.T) {
+	item := mustCDN(t, "cdn.example", "http://origin.example")
+	source := &fakeSource{err: errors.New("control panel unavailable")}
+	service := NewService(source, &fakeStore{}, &fakeSnapshotStore{items: []CDN{item}}, time.Minute)
+	if err := service.LoadLocal(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Sync(context.Background()); err == nil {
+		t.Fatal("Sync() error = nil")
+	}
+	if !service.Ready() {
+		t.Fatal("transient sync failure cleared last-known-good readiness")
 	}
 }
 

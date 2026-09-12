@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -30,6 +31,7 @@ type Service struct {
 	snapshots SnapshotStore
 	interval  time.Duration
 	mu        sync.Mutex
+	ready     atomic.Bool
 }
 
 func NewService(source Source, store Store, snapshots SnapshotStore, interval time.Duration) *Service {
@@ -45,6 +47,7 @@ func (s *Service) LoadLocal(ctx context.Context) error {
 		return fmt.Errorf("load local CDN snapshot: %w", err)
 	}
 	s.store.Replace(items)
+	s.ready.Store(true)
 	return nil
 }
 
@@ -60,8 +63,13 @@ func (s *Service) Sync(ctx context.Context) error {
 		return fmt.Errorf("persist CDN snapshot: %w", err)
 	}
 	s.store.Replace(items)
+	s.ready.Store(true)
 	return nil
 }
+
+// Ready reports whether a complete snapshot has been loaded into the in-memory
+// store. A successfully loaded empty snapshot is ready; a missing snapshot is not.
+func (s *Service) Ready() bool { return s.ready.Load() }
 
 func (s *Service) RunPeriodic(ctx context.Context, onError func(error)) {
 	ticker := time.NewTicker(s.interval)

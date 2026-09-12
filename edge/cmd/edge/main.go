@@ -96,7 +96,7 @@ func main() {
 		MaxConcurrentRequests: cfg.HTTPMaxConcurrent,
 	}
 	publicServer := httpserver.NewPublic(cfg.AppCacheURL, handler, httpLimits)
-	internalServer := httpserver.NewInternal(cfg.AppInternalURL, httpLimits)
+	internalServer := httpserver.NewInternal(cfg.AppInternalURL, snapshotService, httpLimits)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -111,7 +111,7 @@ func main() {
 		if err := natshandler.New(broker, snapshotService).Register(ctx); err != nil {
 			log.Printf("register CDN snapshot subscriber: %v", err)
 		}
-		go edgehealth.NewService(natspublisher.New(broker), "edge", cfg.AppName, appVersion, 10*time.Second).Run(ctx)
+		go edgehealth.NewService(natspublisher.New(broker), snapshotService, "edge", cfg.AppName, appVersion, 10*time.Second).Run(ctx)
 	}
 
 	serverErrors := make(chan error, 2)

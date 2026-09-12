@@ -153,6 +153,12 @@ cd edge
 go run main.go
 ```
 
+The internal listener (port `8090` by default) exposes `/livez` for process
+liveness, `/readyz` for configuration-snapshot readiness, and `/metrics`.
+Readiness becomes successful after a complete local or control-panel snapshot is
+loaded, including a valid empty snapshot, and remains successful while serving a
+last-known-good snapshot during transient synchronization failures.
+
 ### 4. Run Origin Sample
 
 ```bash
