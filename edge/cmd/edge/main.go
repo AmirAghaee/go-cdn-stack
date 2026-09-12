@@ -44,11 +44,23 @@ func main() {
 		log.Printf("load cache metadata: %v", err)
 	}
 
-	controlPanelHTTPClient := &http.Client{Timeout: 30 * time.Second}
-	originHTTPClient, err := originhttp.New(30*time.Second, cfg.OriginAllowedCIDRs)
+	controlPanelHTTPClient := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: http.DefaultTransport.(*http.Transport).Clone(),
+	}
+	defer controlPanelHTTPClient.CloseIdleConnections()
+	originHTTPClient, err := originhttp.New(originhttp.Options{
+		DialTimeout:           cfg.OriginDialTimeoutDuration,
+		ResponseHeaderTimeout: cfg.OriginResponseHeaderTimeoutDuration,
+		IdleConnTimeout:       cfg.OriginIdleConnTimeoutDuration,
+		MaxIdleConns:          cfg.OriginMaxIdleConns,
+		MaxIdleConnsPerHost:   cfg.OriginMaxIdlePerHost,
+		MaxConcurrent:         cfg.OriginMaxConcurrent,
+	}, cfg.OriginAllowedCIDRs)
 	if err != nil {
 		log.Fatalf("initialize origin HTTP client: %v", err)
 	}
+	defer originHTTPClient.CloseIdleConnections()
 	cdnStore := memorystore.New()
 	snapshotService := cdn.NewService(
 		controlpanelclient.New(cfg.ControlPanelURL, cfg.EdgeServiceToken, controlPanelHTTPClient),
@@ -76,8 +88,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("initialize proxy trust policy: %v", err)
 	}
-	publicServer := httpserver.NewPublic(cfg.AppCacheURL, handler)
-	internalServer := httpserver.NewInternal(cfg.AppInternalURL)
+	httpLimits := httpserver.Limits{
+		ReadHeaderTimeout:     cfg.HTTPReadHeaderTimeoutDuration,
+		IdleTimeout:           cfg.HTTPIdleTimeoutDuration,
+		MaxHeaderBytes:        cfg.HTTPMaxHeaderBytes,
+		MaxConnections:        cfg.HTTPMaxConnections,
+		MaxConcurrentRequests: cfg.HTTPMaxConcurrent,
+	}
+	publicServer := httpserver.NewPublic(cfg.AppCacheURL, handler, httpLimits)
+	internalServer := httpserver.NewInternal(cfg.AppInternalURL, httpLimits)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

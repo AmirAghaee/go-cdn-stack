@@ -14,7 +14,11 @@ import (
 )
 
 func TestNewDisablesRedirectsAndEnvironmentProxy(t *testing.T) {
-	client, err := New(time.Second, nil)
+	options := Options{
+		DialTimeout: time.Second, ResponseHeaderTimeout: 2 * time.Second, IdleConnTimeout: 3 * time.Second,
+		MaxIdleConns: 10, MaxIdleConnsPerHost: 4, MaxConcurrent: 7,
+	}
+	client, err := New(options, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,6 +28,16 @@ func TestNewDisablesRedirectsAndEnvironmentProxy(t *testing.T) {
 	transport, ok := client.httpClient.Transport.(*http.Transport)
 	if !ok || transport.Proxy != nil {
 		t.Fatal("origin transport can use an unvalidated environment proxy")
+	}
+	if client.httpClient.Timeout != 0 {
+		t.Fatalf("client timeout = %v, want no whole-response deadline", client.httpClient.Timeout)
+	}
+	if transport.ResponseHeaderTimeout != options.ResponseHeaderTimeout ||
+		transport.IdleConnTimeout != options.IdleConnTimeout ||
+		transport.MaxIdleConns != options.MaxIdleConns ||
+		transport.MaxIdleConnsPerHost != options.MaxIdleConnsPerHost ||
+		transport.MaxConnsPerHost != options.MaxConcurrent {
+		t.Fatalf("transport limits = %+v", transport)
 	}
 }
 
@@ -36,7 +50,7 @@ func TestFetchPreservesOriginBasePathQueryAndHeaders(t *testing.T) {
 	}))
 	defer origin.Close()
 
-	client := newClient(&http.Client{Timeout: time.Second})
+	client := newClient(&http.Client{Timeout: time.Second}, 1)
 	response, err := client.Fetch(context.Background(), cache.OriginRequest{
 		Method: http.MethodGet, Origin: origin.URL + "/base", URI: "/asset?id=7",
 		Host: "cdn.example", Header: map[string][]string{"X-Test-Header": {"preserved"}}, ClientIP: "192.0.2.1",
@@ -75,7 +89,7 @@ func TestFetchDoesNotWaitForCompleteOriginBody(t *testing.T) {
 	}))
 	defer origin.Close()
 
-	client := newClient(&http.Client{Timeout: time.Second})
+	client := newClient(&http.Client{Timeout: time.Second}, 1)
 	response, err := client.Fetch(context.Background(), cache.OriginRequest{
 		Method: http.MethodGet, Origin: origin.URL, URI: "/asset", Host: "cdn.example",
 	})
@@ -98,6 +112,64 @@ func TestFetchDoesNotWaitForCompleteOriginBody(t *testing.T) {
 	}
 }
 
+func TestFetchHoldsConcurrencySlotUntilBodyCloses(t *testing.T) {
+	client := newClient(&http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader("body")),
+			Request:    r,
+		}, nil
+	})}, 1)
+	request := cache.OriginRequest{Method: http.MethodGet, Origin: "https://origin.example", URI: "/asset", Host: "cdn.example"}
+
+	first, err := client.Fetch(context.Background(), request)
+	if err != nil {
+		t.Fatalf("first Fetch() error = %v", err)
+	}
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := client.Fetch(canceled, request); !errors.Is(err, context.Canceled) {
+		t.Fatalf("second Fetch() error = %v, want context cancellation", err)
+	}
+	if err := first.Body.Close(); err != nil {
+		t.Fatalf("close first response: %v", err)
+	}
+
+	third, err := client.Fetch(context.Background(), request)
+	if err != nil {
+		t.Fatalf("third Fetch() error = %v", err)
+	}
+	_ = third.Body.Close()
+}
+
+func TestFetchReleasesConcurrencySlotAtEOF(t *testing.T) {
+	client := newClient(&http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader("body")),
+			Request:    r,
+		}, nil
+	})}, 1)
+	request := cache.OriginRequest{Method: http.MethodGet, Origin: "https://origin.example", URI: "/asset", Host: "cdn.example"}
+
+	first, err := client.Fetch(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.ReadAll(first.Body); err != nil {
+		t.Fatal(err)
+	}
+
+	second, err := client.Fetch(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Fetch() after EOF error = %v", err)
+	}
+	_ = second.Body.Close()
+	_ = first.Body.Close()
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
@@ -113,7 +185,7 @@ func TestFetchSanitizesBothHops(t *testing.T) {
 			t.Errorf("origin host=%s headers=%v", r.Host, r.Header)
 		}
 		return &http.Response{StatusCode: 200, Header: http.Header{"Connection": {"X-Secret"}, "X-Secret": {"secret"}, "Trailer": {"X-Final"}, "X-Origin": {"one", "two"}}, Body: io.NopCloser(strings.NewReader("body")), ContentLength: 4}, nil
-	})})
+	})}, 1)
 	header := map[string][]string{"Connection": {"X-Secret, X-Forwarded-For"}, "X-Secret": {"secret"}, "TE": {"trailers"}, "Proxy-Authorization": {"secret"}, "Forwarded": {"spoofed"}, "X-Real-IP": {"spoofed"}, "X-Forwarded-For": {"spoofed"}, "X-Forwarded-Port": {"9999"}}
 	response, err := client.Fetch(context.Background(), cache.OriginRequest{Method: "GET", Origin: "http://origin.example", URI: "/asset", Host: "cdn.example", Header: header, ForwardedFor: "198.51.100.1, 10.0.0.2", Scheme: "https"})
 	if err != nil {
@@ -138,7 +210,7 @@ func TestFetchReturnsRedirectWithoutFollowingIt(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader("redirect")),
 			Request:    r,
 		}, nil
-	})})
+	})}, 1)
 
 	response, err := client.Fetch(context.Background(), cache.OriginRequest{
 		Method: http.MethodGet, Origin: "https://origin.example", URI: "/asset", Host: "cdn.example",

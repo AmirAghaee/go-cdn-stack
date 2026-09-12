@@ -3,34 +3,90 @@ package httpserver
 import (
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"runtime/debug"
+	"sync"
+	"time"
 
 	cachehttp "github.com/AmirAghaee/go-cdn-stack/edge/internal/cache/httpapi"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func NewPublic(address string, handler *cachehttp.Handler) *http.Server {
-	router := newRouter()
+type Limits struct {
+	ReadHeaderTimeout     time.Duration
+	IdleTimeout           time.Duration
+	MaxHeaderBytes        int
+	MaxConnections        int
+	MaxConcurrentRequests int
+}
+
+func NewPublic(address string, handler *cachehttp.Handler, limits Limits) *http.Server {
+	router := newRouter(limits.MaxConcurrentRequests)
 	// Forwarding trust is handled explicitly by the HTTP adapter.
 	_ = router.SetTrustedProxies(nil)
 	handler.Register(router)
-	return &http.Server{Addr: address, Handler: router}
+	return newServer(address, router, limits)
 }
 
-func NewInternal(address string) *http.Server {
-	router := newRouter()
+func NewInternal(address string, limits Limits) *http.Server {
+	router := newRouter(limits.MaxConcurrentRequests)
 	// Forwarding trust is handled explicitly by the HTTP adapter.
 	_ = router.SetTrustedProxies(nil)
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
-	return &http.Server{Addr: address, Handler: router}
+	return newServer(address, router, limits)
 }
 
-func newRouter() *gin.Engine {
+func newServer(address string, handler http.Handler, limits Limits) *http.Server {
+	return &http.Server{
+		Addr:              address,
+		Handler:           handler,
+		ReadHeaderTimeout: limits.ReadHeaderTimeout,
+		IdleTimeout:       limits.IdleTimeout,
+		MaxHeaderBytes:    limits.MaxHeaderBytes,
+		ConnState:         limitConnections(limits.MaxConnections),
+	}
+}
+
+func limitConnections(maxConnections int) func(net.Conn, http.ConnState) {
+	var mu sync.Mutex
+	admitted := make(map[net.Conn]struct{}, maxConnections)
+	return func(connection net.Conn, state http.ConnState) {
+		mu.Lock()
+		switch state {
+		case http.StateNew:
+			if len(admitted) >= maxConnections {
+				mu.Unlock()
+				_ = connection.Close()
+				return
+			}
+			admitted[connection] = struct{}{}
+		case http.StateHijacked, http.StateClosed:
+			delete(admitted, connection)
+		}
+		mu.Unlock()
+	}
+}
+
+func newRouter(maxConcurrentRequests int) *gin.Engine {
 	router := gin.New()
-	router.Use(gin.Logger(), recovery())
+	router.Use(gin.Logger(), recovery(), limitConcurrency(maxConcurrentRequests))
 	return router
+}
+
+func limitConcurrency(maxConcurrentRequests int) gin.HandlerFunc {
+	active := make(chan struct{}, maxConcurrentRequests)
+	return func(c *gin.Context) {
+		select {
+		case active <- struct{}{}:
+			defer func() { <-active }()
+			c.Next()
+		default:
+			c.Header("Retry-After", "1")
+			c.AbortWithStatus(http.StatusServiceUnavailable)
+		}
+	}
 }
 
 // recovery lets net/http handle ErrAbortHandler so a partially streamed
