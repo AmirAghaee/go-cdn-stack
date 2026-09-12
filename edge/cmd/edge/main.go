@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cache"
+	cachecli "github.com/AmirAghaee/go-cdn-stack/edge/internal/cache/cli"
 	cachefilesystem "github.com/AmirAghaee/go-cdn-stack/edge/internal/cache/filesystemstore"
 	cachehttp "github.com/AmirAghaee/go-cdn-stack/edge/internal/cache/httpapi"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cache/originhttp"
@@ -32,6 +34,15 @@ const appVersion = "v1.0.0"
 
 func main() {
 	cfg := config.Load()
+	if len(os.Args) > 1 {
+		if os.Args[1] != "purge-cache" {
+			log.Fatalf("unknown command %q", os.Args[1])
+		}
+		if err := purgeCache(cfg.CacheDir, os.Args[2:]); err != nil {
+			log.Fatalf("purge cache: %v", err)
+		}
+		return
+	}
 	gin.SetMode(cfg.GinMode)
 
 	metrics := observability.NewMetrics()
@@ -138,6 +149,16 @@ func main() {
 	if err := internalServer.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shut down internal server: %v", err)
 	}
+}
+
+func purgeCache(directory string, args []string) error {
+	purger, err := cachefilesystem.NewPurger(directory)
+	if err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	return cachecli.NewPurgeCacheCommand(cache.NewPurgeService(purger)).Run(ctx, args)
 }
 
 func runHealthPublisher(ctx context.Context, broker *natsbroker.Broker, readiness edgehealth.Readiness, instance string, initiallyConnected bool) {

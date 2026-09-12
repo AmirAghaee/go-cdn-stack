@@ -150,7 +150,7 @@ A `.env` file is optional; the service uses the values documented in
 
 ```bash
 cd edge
-go run main.go
+go run ./cmd/edge
 ```
 
 The internal listener (port `8090` by default) exposes `/livez` for process
@@ -158,6 +158,22 @@ liveness, `/readyz` for configuration-snapshot readiness, and `/metrics`.
 Readiness becomes successful after a complete local or control-panel snapshot is
 loaded, including a valid empty snapshot, and remains successful while serving a
 last-known-good snapshot during transient synchronization failures.
+
+Purge every committed cache entry for one domain from the local edge cache with:
+
+```bash
+go run ./cmd/edge purge-cache --domain cdn.example.com
+```
+
+For the Compose edge container, run:
+
+```bash
+docker compose exec edge ./app purge-cache --domain cdn.example.com
+```
+
+The command affects only that edge node's `CACHE_DIR`. It is safe to run while
+the edge is serving, but the purge is best effort: already-open responses can
+finish and an in-flight cache fill can publish a new entry after the scan.
 
 ### 4. Run Origin Sample
 

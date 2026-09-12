@@ -141,20 +141,32 @@ func (s *Store) removeBodyLocked(path string) {
 }
 
 func (s *Store) metadataPath(key string) string {
+	return metadataPath(s.directory, key)
+}
+
+func metadataPath(directory, key string) string {
 	digest := sha256.Sum256([]byte(key))
-	return filepath.Join(s.directory, fmt.Sprintf("%x.cache.json", digest))
+	return filepath.Join(directory, fmt.Sprintf("%x.cache.json", digest))
 }
 
 func (s *Store) validMetadata(key string, item metadata) bool {
+	return validMetadata(s.directory, key, item)
+}
+
+func validMetadata(directory, key string, item metadata) bool {
 	if item.FormatVersion != metadataFormatVersion || item.StoredAt.IsZero() ||
-		item.InitialAgeNanoseconds < 0 || item.BodySize < 0 || item.Key != key || !s.safeBodyPath(item.FilePath) {
+		item.InitialAgeNanoseconds < 0 || item.BodySize < 0 || item.Key != key || !safeBodyPath(directory, item.FilePath) {
 		return false
 	}
-	return s.bodyPathMatchesKey(key, item.FilePath)
+	return bodyPathMatchesKey(directory, key, item.FilePath)
 }
 
 func (s *Store) bodyPathMatchesKey(key, path string) bool {
-	if !s.safeBodyPath(path) {
+	return bodyPathMatchesKey(s.directory, key, path)
+}
+
+func bodyPathMatchesKey(directory, key, path string) bool {
+	if !safeBodyPath(directory, path) {
 		return false
 	}
 	digest := sha256.Sum256([]byte(key))
@@ -162,8 +174,12 @@ func (s *Store) bodyPathMatchesKey(key, path string) bool {
 }
 
 func (s *Store) safeBodyPath(path string) bool {
+	return safeBodyPath(s.directory, path)
+}
+
+func safeBodyPath(directory, path string) bool {
 	cleaned := filepath.Clean(path)
-	return filepath.Dir(cleaned) == s.directory && isCacheBody(filepath.Base(cleaned))
+	return filepath.Dir(cleaned) == directory && isCacheBody(filepath.Base(cleaned))
 }
 
 func (s *Store) addAccountingLocked(path string, size int64) {

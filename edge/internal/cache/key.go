@@ -2,7 +2,9 @@ package cache
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cdn"
@@ -31,6 +33,59 @@ func cacheKey(item cdn.CDN, uri string, header map[string][]string) string {
 		len(uri), uri,
 		len(acceptEncoding), acceptEncoding,
 	)
+}
+
+// DomainFromKey returns the normalized CDN domain encoded in a current cache
+// key. It rejects incomplete and non-canonical keys so maintenance operations
+// cannot purge an entry based on an ambiguous substring match.
+func DomainFromKey(key string) (string, bool) {
+	remainder, ok := strings.CutPrefix(key, cacheKeyVersion+"|configuration=")
+	if !ok || len(remainder) < sha256.Size*2+len("|host=") {
+		return "", false
+	}
+	configuration := remainder[:sha256.Size*2]
+	if _, err := hex.DecodeString(configuration); err != nil {
+		return "", false
+	}
+	remainder = remainder[sha256.Size*2:]
+	if !strings.HasPrefix(remainder, "|host=") {
+		return "", false
+	}
+
+	domain, remainder, ok := consumeKeyValue(remainder[1:], "host=")
+	if !ok || domain == "" || cdn.NormalizeDomain(domain) != domain || !strings.HasPrefix(remainder, "|uri=") {
+		return "", false
+	}
+	_, remainder, ok = consumeKeyValue(remainder[1:], "uri=")
+	if !ok || !strings.HasPrefix(remainder, "|accept-encoding=") {
+		return "", false
+	}
+	_, remainder, ok = consumeKeyValue(remainder[1:], "accept-encoding=")
+	if !ok || remainder != "" {
+		return "", false
+	}
+	return domain, true
+}
+
+func consumeKeyValue(value, prefix string) (string, string, bool) {
+	value, ok := strings.CutPrefix(value, prefix)
+	if !ok {
+		return "", "", false
+	}
+	separator := strings.IndexByte(value, ':')
+	if separator <= 0 {
+		return "", "", false
+	}
+	lengthText := value[:separator]
+	length, err := strconv.Atoi(lengthText)
+	if err != nil || length < 0 || strconv.Itoa(length) != lengthText {
+		return "", "", false
+	}
+	value = value[separator+1:]
+	if length > len(value) {
+		return "", "", false
+	}
+	return value[:length], value[length:], true
 }
 
 func normalizeAcceptEncoding(values []string) string {

@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cdn"
@@ -24,6 +26,41 @@ func TestCacheKeyIncludesNormalizedAcceptEncoding(t *testing.T) {
 	}
 	if first[:len(cacheKeyVersion)] != cacheKeyVersion {
 		t.Fatalf("cache key %q does not start with version %q", first, cacheKeyVersion)
+	}
+}
+
+func TestDomainFromKey(t *testing.T) {
+	item, err := cdn.New("id-1", "CDN.Example.", "http://origin.example", true, 60)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := cacheKey(item, "/asset|host=999:wrong?x=1", map[string][]string{
+		"Accept-Encoding": {"gzip, br"},
+	})
+
+	domain, ok := DomainFromKey(key)
+	if !ok || domain != "cdn.example" {
+		t.Fatalf("DomainFromKey() = %q, %v; want cdn.example, true", domain, ok)
+	}
+}
+
+func TestDomainFromKeyRejectsMalformedKeys(t *testing.T) {
+	configuration := strings.Repeat("0", 64)
+	cases := []string{
+		"",
+		"v2|configuration=" + configuration + "|host=11:cdn.example|uri=1:/|accept-encoding=0:",
+		"v3|configuration=invalid|host=11:cdn.example|uri=1:/|accept-encoding=0:",
+		"v3|configuration=" + configuration + "|host=99:cdn.example|uri=1:/|accept-encoding=0:",
+		"v3|configuration=" + configuration + "|host=11:CDN.EXAMPLE|uri=1:/|accept-encoding=0:",
+		"v3|configuration=" + configuration + "|host=11:cdn.example|uri=2:/|accept-encoding=0:",
+		"v3|configuration=" + configuration + "|host=11:cdn.example|uri=1:/|accept-encoding=0:trailing",
+	}
+	for index, key := range cases {
+		t.Run(fmt.Sprintf("case-%d", index), func(t *testing.T) {
+			if domain, ok := DomainFromKey(key); ok {
+				t.Fatalf("DomainFromKey(%q) = %q, true; want false", key, domain)
+			}
+		})
 	}
 }
 
