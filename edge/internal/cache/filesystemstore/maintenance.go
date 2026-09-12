@@ -2,7 +2,6 @@ package filesystemstore
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,34 +11,85 @@ import (
 )
 
 func (s *Store) Load() error {
+	if err := s.reconcile(); err != nil {
+		return err
+	}
+	s.updateMetrics()
+	return nil
+}
+
+func (s *Store) reconcile() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	files, err := os.ReadDir(s.directory)
 	if err != nil {
 		return fmt.Errorf("read cache directory: %w", err)
 	}
+	now := time.Now()
+	referencedBodies := make(map[string]int64)
 	for _, file := range files {
-		if file.IsDir() || !strings.HasSuffix(file.Name(), ".cache.json") {
+		if file.IsDir() || !isCacheMetadata(file.Name()) {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(s.directory, file.Name()))
+		metadataPath := filepath.Join(s.directory, file.Name())
+		data, err := os.ReadFile(metadataPath)
 		if err != nil {
+			_ = os.Remove(metadataPath)
 			continue
 		}
 		var item metadata
-		if err := json.Unmarshal(data, &item); err != nil || item.StoredAt.IsZero() ||
-			item.InitialAgeNanoseconds < 0 || !time.Now().Before(item.ExpiresAt) {
+		if err := json.Unmarshal(data, &item); err != nil ||
+			filepath.Clean(metadataPath) != s.metadataPath(item.Key) ||
+			!s.validMetadata(item.Key, item) || !now.Before(item.ExpiresAt) {
+			if item.Key != "" {
+				s.cache.Del(item.Key)
+			}
+			_ = os.Remove(metadataPath)
+			if s.bodyPathMatchesKey(item.Key, item.FilePath) {
+				_ = os.Remove(item.FilePath)
+			}
 			continue
 		}
-		key := item.Key
-		if key == "" {
-			var ok bool
-			key, ok = keyFromMetadataName(file.Name())
-			if !ok {
-				continue
+		info, err := os.Lstat(item.FilePath)
+		if err != nil || !info.Mode().IsRegular() || info.Size() != item.BodySize {
+			s.cache.Del(item.Key)
+			_ = os.Remove(metadataPath)
+			_ = os.Remove(item.FilePath)
+			continue
+		}
+		referencedBodies[item.FilePath] = item.BodySize
+		s.cache.SetWithTTL(item.Key, item, 1, time.Until(item.ExpiresAt))
+	}
+	s.cache.Wait()
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		path := filepath.Join(s.directory, file.Name())
+		switch {
+		case isCacheTemp(file.Name()):
+			if _, active := s.activeTemps[path]; !active {
+				_ = os.Remove(path)
+			}
+		case isCacheBody(file.Name()):
+			if _, referenced := referencedBodies[path]; !referenced {
+				if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+					if info, infoErr := file.Info(); infoErr == nil {
+						referencedBodies[path] = info.Size()
+					}
+				}
 			}
 		}
-		s.cache.SetWithTTL(key, item, 1, time.Until(item.ExpiresAt))
 	}
-	s.updateMetrics()
+
+	s.accountedBodies = referencedBodies
+	s.sizeBytes = 0
+	for _, size := range referencedBodies {
+		s.sizeBytes += size
+	}
+	s.itemCount = len(referencedBodies)
 	return nil
 }
 
@@ -57,52 +107,36 @@ func (s *Store) RunCleaner(ctx context.Context) {
 }
 
 func (s *Store) cleanExpiredFiles() {
-	files, err := os.ReadDir(s.directory)
-	if err != nil {
-		return
+	if err := s.reconcile(); err == nil {
+		s.updateMetrics()
 	}
-	for _, file := range files {
-		if file.IsDir() || !strings.HasSuffix(file.Name(), ".cache.json") {
-			continue
-		}
-		metaPath := filepath.Join(s.directory, file.Name())
-		data, err := os.ReadFile(metaPath)
-		if err != nil {
-			continue
-		}
-		var item metadata
-		if json.Unmarshal(data, &item) == nil && time.Now().After(item.ExpiresAt) {
-			_ = os.Remove(item.FilePath)
-			_ = os.Remove(metaPath)
-		}
-	}
-	s.updateMetrics()
 }
 
-func (s *Store) updateMetrics() {
-	files, err := os.ReadDir(s.directory)
-	if err != nil {
-		return
+func isCacheTemp(name string) bool {
+	if strings.HasPrefix(name, ".cache-") && strings.HasSuffix(name, ".tmp") {
+		return true
 	}
-	var size int64
-	var count int
-	for _, file := range files {
-		if file.IsDir() || !strings.HasSuffix(file.Name(), ".cache") {
-			continue
-		}
-		if info, err := file.Info(); err == nil {
-			size += info.Size()
-			count++
-		}
-	}
-	s.metrics.SetCacheStorage(size, count)
+	return hasCacheBodyPrefix(name) && strings.HasSuffix(name, ".tmp")
 }
 
-func keyFromMetadataName(name string) (string, bool) {
-	hexName := strings.TrimSuffix(name, ".cache.json")
-	decoded, err := hex.DecodeString(hexName)
-	if err != nil {
-		return "", false
+func isCacheBody(name string) bool {
+	return hasCacheBodyPrefix(name) && strings.HasSuffix(name, ".cache")
+}
+
+func isCacheMetadata(name string) bool {
+	const suffix = ".cache.json"
+	return len(name) == 64+len(suffix) && strings.HasSuffix(name, suffix) && isLowerHex(name[:64])
+}
+
+func hasCacheBodyPrefix(name string) bool {
+	return len(name) > 65 && name[64] == '-' && isLowerHex(name[:64])
+}
+
+func isLowerHex(value string) bool {
+	for _, character := range value {
+		if !strings.ContainsRune("0123456789abcdef", character) {
+			return false
+		}
 	}
-	return string(decoded), true
+	return value != ""
 }
