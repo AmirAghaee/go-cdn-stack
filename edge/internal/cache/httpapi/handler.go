@@ -2,8 +2,9 @@ package httpapi
 
 import (
 	"context"
-	"fmt"
 	"io"
+	"log"
+	"net/http"
 	"net/netip"
 	"sync"
 
@@ -53,6 +54,7 @@ func (h *Handler) handle(c *gin.Context) {
 	buffer := streamBufferPool.Get().([]byte)
 	defer streamBufferPool.Put(buffer)
 	if _, err := io.CopyBuffer(c.Writer, response.Body, buffer); err != nil {
-		_ = c.Error(fmt.Errorf("stream edge response: %w", err))
+		log.Printf("operation=stream_edge_response error=%q", err)
+		panic(http.ErrAbortHandler)
 	}
 }

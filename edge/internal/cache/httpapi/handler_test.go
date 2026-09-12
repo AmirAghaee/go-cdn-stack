@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -61,6 +62,40 @@ func TestHandlerMapsHTTPRequestAndApplicationResponse(t *testing.T) {
 	if !body.closed {
 		t.Fatal("response body was not closed")
 	}
+}
+
+func TestHandlerAbortsResponseWhenBodyStreamingFails(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := &trackedBody{Reader: io.MultiReader(strings.NewReader("partial"), failingReader{})}
+	service := &fakeService{response: cache.Response{
+		StatusCode: http.StatusOK,
+		Header:     map[string][]string{"Content-Type": {"application/octet-stream"}},
+		Body:       body,
+	}}
+	router := gin.New()
+	New(service).Register(router)
+
+	defer func() {
+		recovered := recover()
+		if !errors.Is(asError(recovered), http.ErrAbortHandler) {
+			t.Fatalf("panic = %v, want http.ErrAbortHandler", recovered)
+		}
+		if !body.closed {
+			t.Fatal("response body was not closed")
+		}
+	}()
+
+	request := httptest.NewRequest(http.MethodGet, "http://cdn.example/asset", nil)
+	router.ServeHTTP(httptest.NewRecorder(), request)
+}
+
+type failingReader struct{}
+
+func (failingReader) Read([]byte) (int, error) { return 0, errors.New("upstream interrupted") }
+
+func asError(value any) error {
+	err, _ := value.(error)
+	return err
 }
 
 func TestForwardingTrustBoundary(t *testing.T) {
