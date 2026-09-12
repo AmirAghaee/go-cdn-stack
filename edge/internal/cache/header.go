@@ -144,3 +144,12 @@ func cloneHeader(header map[string][]string) map[string][]string {
 	}
 	return cloned
 }
+
+func setHeader(header map[string][]string, name, value string) {
+	for existingName := range header {
+		if strings.EqualFold(existingName, name) {
+			delete(header, existingName)
+		}
+	}
+	header[name] = []string{value}
+}

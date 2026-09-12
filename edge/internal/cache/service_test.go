@@ -62,6 +62,8 @@ func (f *fakePendingEntry) Commit() error {
 		Header:     f.metadata.Header,
 		Body:       io.NopCloser(bytes.NewReader(f.body.Bytes())),
 		ExpiresAt:  f.metadata.ExpiresAt,
+		StoredAt:   f.metadata.StoredAt,
+		InitialAge: f.metadata.InitialAge,
 	}
 	return nil
 }
@@ -196,6 +198,8 @@ func (s *concurrentCacheStore) Get(key string) (Entry, bool) {
 		Header:     cloneHeader(item.metadata.Header),
 		Body:       io.NopCloser(bytes.NewReader(item.body)),
 		ExpiresAt:  item.metadata.ExpiresAt,
+		StoredAt:   item.metadata.StoredAt,
+		InitialAge: item.metadata.InitialAge,
 	}, true
 }
 
@@ -526,6 +530,35 @@ func TestOnlyIfCachedServesFreshCacheHitWithoutOrigin(t *testing.T) {
 	}
 	if origin.calls != 0 {
 		t.Fatalf("origin calls = %d", origin.calls)
+	}
+}
+
+func TestCacheHitReplacesAgeWithCurrentStoredAge(t *testing.T) {
+	now := time.Date(2026, time.September, 9, 12, 0, 30, 0, time.UTC)
+	item := mustCDN(t, 60)
+	request := Request{Method: http.MethodGet, Host: item.Domain(), URI: "/asset"}
+	store := &fakeCacheStore{items: map[string]Entry{
+		cacheKey(item, request.URI, request.Header): {
+			StatusCode: http.StatusOK,
+			Header:     map[string][]string{"Content-Type": {"image/png"}, "aGe": {"15"}},
+			Body:       stream("cached"),
+			ExpiresAt:  now.Add(time.Minute),
+			StoredAt:   now.Add(-20 * time.Second),
+			InitialAge: 15 * time.Second,
+		},
+	}}
+	service := NewService(fakeCDNStore{item: item}, store, &fakeOrigin{}, fakeMetrics{}, 0)
+	service.now = func() time.Time { return now }
+
+	response := service.Handle(context.Background(), request)
+	if body := readResponseBody(t, response); body != "cached" {
+		t.Fatalf("response body = %q", body)
+	}
+	if values := headerValues(response.Header, "Age"); len(values) != 1 || values[0] != "35" {
+		t.Fatalf("response Age = %v, headers = %v", values, response.Header)
+	}
+	if _, found := response.Header["aGe"]; found {
+		t.Fatalf("stored Age casing was replayed: %v", response.Header)
 	}
 }
 

@@ -31,12 +31,18 @@ type Entry struct {
 	Header     map[string][]string
 	Body       io.ReadCloser
 	ExpiresAt  time.Time
+	StoredAt   time.Time
+	InitialAge time.Duration
 }
 
 type EntryMetadata struct {
 	StatusCode int
 	Header     map[string][]string
 	ExpiresAt  time.Time
+	// StoredAt is the origin-header receipt time; InitialAge is the corrected
+	// response age at that instant.
+	StoredAt   time.Time
+	InitialAge time.Duration
 }
 
 // PendingEntry owns an unpublished cache body. The caller must finish it with

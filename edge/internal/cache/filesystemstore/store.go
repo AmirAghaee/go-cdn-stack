@@ -23,11 +23,13 @@ type Store struct {
 }
 
 type metadata struct {
-	Key        string              `json:"key,omitempty"`
-	FilePath   string              `json:"file_path"`
-	Header     map[string][]string `json:"header"`
-	ExpiresAt  time.Time           `json:"expires_at"`
-	StatusCode int                 `json:"status_code,omitempty"`
+	Key                   string              `json:"key,omitempty"`
+	FilePath              string              `json:"file_path"`
+	Header                map[string][]string `json:"header"`
+	ExpiresAt             time.Time           `json:"expires_at"`
+	StoredAt              time.Time           `json:"stored_at"`
+	InitialAgeNanoseconds int64               `json:"initial_age_nanoseconds"`
+	StatusCode            int                 `json:"status_code,omitempty"`
 }
 
 func New(directory string, cleanerInterval time.Duration, metrics StorageMetrics) (*Store, error) {
@@ -74,6 +76,8 @@ func (s *Store) Get(key string) (cache.Entry, bool) {
 		Header:     item.Header,
 		Body:       body,
 		ExpiresAt:  item.ExpiresAt,
+		StoredAt:   item.StoredAt,
+		InitialAge: time.Duration(item.InitialAgeNanoseconds),
 	}, true
 }
 

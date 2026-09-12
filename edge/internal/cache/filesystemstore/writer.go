@@ -27,6 +27,9 @@ func (s *Store) Begin(key string, entry cache.EntryMetadata) (cache.PendingEntry
 	if !time.Now().Before(entry.ExpiresAt) {
 		return nil, fmt.Errorf("cache entry is already expired")
 	}
+	if entry.StoredAt.IsZero() || entry.InitialAge < 0 {
+		return nil, fmt.Errorf("cache entry timing metadata is invalid")
+	}
 	digest := sha256.Sum256([]byte(key))
 	prefix := fmt.Sprintf("%x-", digest)
 	temp, err := os.CreateTemp(s.directory, prefix+"*.tmp")
@@ -43,6 +46,7 @@ func (s *Store) Begin(key string, entry cache.EntryMetadata) (cache.PendingEntry
 		key:   key,
 		metadata: metadata{
 			Key: key, Header: entry.Header, ExpiresAt: entry.ExpiresAt,
+			StoredAt: entry.StoredAt, InitialAgeNanoseconds: int64(entry.InitialAge),
 			StatusCode: entry.StatusCode,
 		},
 		file: temp, tempPath: tempPath, oldPath: oldPath,

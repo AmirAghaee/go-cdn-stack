@@ -96,6 +96,15 @@ func TestCacheExpiryHonorsConfiguredAndOriginFreshness(t *testing.T) {
 			wantOffset: 45 * time.Second,
 			wantOK:     true,
 		},
+		"date apparent age reduces max age": {
+			ttl: 120,
+			header: cacheableHeader(
+				"Cache-Control", "max-age=60",
+				"Date", now.Add(-20*time.Second).Format(http.TimeFormat),
+			),
+			wantOffset: 40 * time.Second,
+			wantOK:     true,
+		},
 		"expires and date define freshness": {
 			ttl: 120,
 			header: cacheableHeader(
@@ -154,6 +163,10 @@ func TestCacheExpiryHonorsConfiguredAndOriginFreshness(t *testing.T) {
 			ttl:    120,
 			header: cacheableHeader("Age", "old"),
 		},
+		"malformed date": {
+			ttl:    120,
+			header: cacheableHeader("Date", "yesterday"),
+		},
 	}
 
 	for name, test := range tests {
@@ -169,6 +182,35 @@ func TestCacheExpiryHonorsConfiguredAndOriginFreshness(t *testing.T) {
 				t.Fatalf("expiry = %s, want %s", expiresAt, now.Add(test.wantOffset))
 			}
 		})
+	}
+}
+
+func TestCacheFreshnessIncludesOriginResponseDelay(t *testing.T) {
+	responseTime := time.Date(2026, time.September, 9, 12, 0, 0, 0, time.UTC)
+	requestTime := responseTime.Add(-5 * time.Second)
+	response := Response{
+		StatusCode: http.StatusOK,
+		Header: cacheableHeader(
+			"Cache-Control", "max-age=60",
+			"Date", responseTime.Format(http.TimeFormat),
+			"Age", "10",
+		),
+	}
+
+	metadata, ok := cacheFreshness(requestTime, responseTime, 120, response)
+	if !ok {
+		t.Fatal("cacheFreshness() rejected cacheable response")
+	}
+	if metadata.initialAge != 15*time.Second || metadata.storedAt != responseTime ||
+		!metadata.expiresAt.Equal(responseTime.Add(45*time.Second)) {
+		t.Fatalf("freshness metadata = %+v", metadata)
+	}
+}
+
+func TestCurrentAgeAddsResidentTime(t *testing.T) {
+	now := time.Date(2026, time.September, 9, 12, 0, 30, 0, time.UTC)
+	if got := currentAge(now, now.Add(-20*time.Second), 15*time.Second); got != 35*time.Second {
+		t.Fatalf("currentAge() = %v, want 35s", got)
 	}
 }
 

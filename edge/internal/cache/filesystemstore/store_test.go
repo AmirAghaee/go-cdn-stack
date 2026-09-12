@@ -1,6 +1,7 @@
 package filesystemstore
 
 import (
+	"encoding/json"
 	"io"
 	"os"
 	"testing"
@@ -24,6 +25,8 @@ func TestSetPersistsAndReturnsResponse(t *testing.T) {
 		StatusCode: 201,
 		Header:     map[string][]string{"Content-Type": {"image/png"}},
 		ExpiresAt:  time.Now().Add(time.Minute),
+		StoredAt:   time.Now().Add(-20 * time.Second),
+		InitialAge: 10 * time.Second,
 	}
 	pending, err := store.Begin("cdn.example/asset", want)
 	if err != nil {
@@ -53,8 +56,20 @@ func TestSetPersistsAndReturnsResponse(t *testing.T) {
 	if err := got.Body.Close(); err != nil {
 		t.Fatalf("close cached body: %v", err)
 	}
-	if got.StatusCode != want.StatusCode || string(body) != "image" {
-		t.Fatalf("Get() status=%d body=%q", got.StatusCode, body)
+	if got.StatusCode != want.StatusCode || string(body) != "image" ||
+		!got.StoredAt.Equal(want.StoredAt) || got.InitialAge != want.InitialAge {
+		t.Fatalf("Get() entry=%+v body=%q", got, body)
+	}
+	data, err := os.ReadFile(store.metadataPath("cdn.example/asset"))
+	if err != nil {
+		t.Fatalf("read persisted metadata: %v", err)
+	}
+	var persisted metadata
+	if err := json.Unmarshal(data, &persisted); err != nil {
+		t.Fatalf("decode persisted metadata: %v", err)
+	}
+	if !persisted.StoredAt.Equal(want.StoredAt) || persisted.InitialAgeNanoseconds != int64(want.InitialAge) {
+		t.Fatalf("persisted timing metadata = %+v", persisted)
 	}
 }
 
@@ -66,7 +81,9 @@ func TestAbortRemovesTemporaryBody(t *testing.T) {
 	}
 	defer store.Close()
 
-	pending, err := store.Begin("cdn.example/asset", cache.EntryMetadata{ExpiresAt: time.Now().Add(time.Minute)})
+	pending, err := store.Begin("cdn.example/asset", cache.EntryMetadata{
+		ExpiresAt: time.Now().Add(time.Minute), StoredAt: time.Now(),
+	})
 	if err != nil {
 		t.Fatalf("Begin() error = %v", err)
 	}

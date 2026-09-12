@@ -69,78 +69,120 @@ func hasCacheControlDirective(header map[string][]string, name string) bool {
 	return false
 }
 
+type freshnessMetadata struct {
+	expiresAt  time.Time
+	storedAt   time.Time
+	initialAge time.Duration
+}
+
 func cacheExpiry(now time.Time, configuredTTL uint, response Response) (time.Time, bool) {
+	metadata, ok := cacheFreshness(now, now, configuredTTL, response)
+	return metadata.expiresAt, ok
+}
+
+func cacheFreshness(requestTime, responseTime time.Time, configuredTTL uint, response Response) (freshnessMetadata, bool) {
 	if response.StatusCode != http.StatusOK ||
 		!isCacheableContentType(firstHeader(response.Header, "Content-Type")) ||
 		hasHeader(response.Header, "Set-Cookie") ||
 		!hasSupportedVary(response.Header) {
-		return time.Time{}, false
+		return freshnessMetadata{}, false
 	}
 
 	configuredDuration, ok := cacheTTLDuration(configuredTTL)
 	if !ok {
-		return time.Time{}, false
+		return freshnessMetadata{}, false
 	}
-	configuredExpiry := now.Add(configuredDuration)
+	configuredExpiry := responseTime.Add(configuredDuration)
 
 	directives, valid := parseCacheControl(response.Header)
 	if !valid {
-		return time.Time{}, false
+		return freshnessMetadata{}, false
 	}
 	for _, directive := range []string{"private", "no-store", "no-cache"} {
 		if _, found := directives[directive]; found {
-			return time.Time{}, false
+			return freshnessMetadata{}, false
 		}
 	}
 
-	age, ok := parseAge(response.Header)
+	initialAge, responseDate, ok := correctedInitialAge(requestTime, responseTime, response.Header)
 	if !ok {
-		return time.Time{}, false
+		return freshnessMetadata{}, false
 	}
+	metadata := freshnessMetadata{storedAt: responseTime, initialAge: initialAge}
 
 	if values, found := directives["s-maxage"]; found {
-		return boundedFreshnessExpiry(now, configuredExpiry, values, age)
+		metadata.expiresAt, ok = boundedFreshnessExpiry(responseTime, configuredExpiry, values, initialAge)
+		return metadata, ok
 	}
 	if values, found := directives["max-age"]; found {
-		return boundedFreshnessExpiry(now, configuredExpiry, values, age)
+		metadata.expiresAt, ok = boundedFreshnessExpiry(responseTime, configuredExpiry, values, initialAge)
+		return metadata, ok
 	}
 
 	expiresValues := headerValues(response.Header, "Expires")
 	if len(expiresValues) > 0 {
 		if len(expiresValues) != 1 {
-			return time.Time{}, false
+			return freshnessMetadata{}, false
 		}
 		expiresAt, err := http.ParseTime(strings.TrimSpace(expiresValues[0]))
 		if err != nil {
-			return time.Time{}, false
+			return freshnessMetadata{}, false
 		}
-
-		dateValues := headerValues(response.Header, "Date")
-		originExpiry := expiresAt.Add(-age)
-		if len(dateValues) > 0 {
-			if len(dateValues) != 1 {
-				return time.Time{}, false
-			}
-			responseDate, err := http.ParseTime(strings.TrimSpace(dateValues[0]))
-			if err != nil {
-				return time.Time{}, false
-			}
-			if !expiresAt.After(responseDate) {
-				return time.Time{}, false
-			}
-			freshnessLifetime := expiresAt.Sub(responseDate)
-			apparentAge := now.Sub(responseDate)
-			if apparentAge < 0 {
-				apparentAge = 0
-			}
-			currentAge := maxDuration(apparentAge, age)
-			originExpiry = now.Add(freshnessLifetime - currentAge)
+		if !expiresAt.After(responseDate) {
+			return freshnessMetadata{}, false
 		}
-
-		return earlierFutureExpiry(now, configuredExpiry, originExpiry)
+		freshnessLifetime := expiresAt.Sub(responseDate)
+		originExpiry := responseTime.Add(freshnessLifetime - initialAge)
+		metadata.expiresAt, ok = earlierFutureExpiry(responseTime, configuredExpiry, originExpiry)
+		return metadata, ok
 	}
 
-	return configuredExpiry, true
+	metadata.expiresAt = configuredExpiry
+	return metadata, true
+}
+
+func correctedInitialAge(requestTime, responseTime time.Time, header map[string][]string) (time.Duration, time.Time, bool) {
+	ageValue, ok := parseAge(header)
+	if !ok {
+		return 0, time.Time{}, false
+	}
+	responseDelay := responseTime.Sub(requestTime)
+	if responseDelay < 0 {
+		responseDelay = 0
+	}
+	if ageValue > time.Duration(math.MaxInt64)-responseDelay {
+		return 0, time.Time{}, false
+	}
+	correctedAgeValue := ageValue + responseDelay
+
+	responseDate := responseTime
+	dateValues := headerValues(header, "Date")
+	if len(dateValues) > 0 {
+		if len(dateValues) != 1 {
+			return 0, time.Time{}, false
+		}
+		var err error
+		responseDate, err = http.ParseTime(strings.TrimSpace(dateValues[0]))
+		if err != nil {
+			return 0, time.Time{}, false
+		}
+	}
+	apparentAge := responseTime.Sub(responseDate)
+	if apparentAge < 0 {
+		apparentAge = 0
+	}
+	return maxDuration(apparentAge, correctedAgeValue), responseDate, true
+}
+
+func currentAge(now, storedAt time.Time, initialAge time.Duration) time.Duration {
+	if storedAt.IsZero() || !now.After(storedAt) {
+		return initialAge
+	}
+	residentTime := now.Sub(storedAt)
+	if initialAge > time.Duration(math.MaxInt64)-residentTime {
+		return time.Duration(math.MaxInt64)
+	}
+	return initialAge + residentTime
 }
 
 func cacheTTLDuration(ttl uint) (time.Duration, bool) {

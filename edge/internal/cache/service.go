@@ -99,9 +99,13 @@ func (s *Service) Handle(ctx context.Context, request Request) Response {
 	missRecorded := false
 	for {
 		if cached, found := s.cache.Get(key); found {
-			if s.now().Before(cached.ExpiresAt) {
+			now := s.now()
+			if now.Before(cached.ExpiresAt) {
 				s.metrics.RecordCacheHit(host)
-				response := Response{StatusCode: cached.StatusCode, Header: cloneHeader(cached.Header), Body: cached.Body, CacheStatus: "hit"}
+				header := cloneHeader(cached.Header)
+				age := currentAge(now, cached.StoredAt, cached.InitialAge)
+				setHeader(header, "Age", strconv.FormatInt(int64(age/time.Second), 10))
+				response := Response{StatusCode: cached.StatusCode, Header: header, Body: cached.Body, CacheStatus: "hit"}
 				return s.trackResponse(request, host, response, startedAt)
 			}
 			_ = cached.Body.Close()
@@ -131,13 +135,17 @@ func (s *Service) Handle(ctx context.Context, request Request) Response {
 			}
 		}
 
+		originRequestAt := s.now()
 		response := s.fetch(ctx, request, item, "miss")
-		if expiresAt, cacheable := cacheExpiry(s.now(), item.CacheTTL(), response); cacheable &&
+		originResponseAt := s.now()
+		if freshness, cacheable := cacheFreshness(originRequestAt, originResponseAt, item.CacheTTL(), response); cacheable &&
 			(s.maxObjectSize <= 0 || responseContentLength(response) <= s.maxObjectSize) {
 			entry := EntryMetadata{
 				StatusCode: response.StatusCode,
 				Header:     cloneHeader(response.Header),
-				ExpiresAt:  expiresAt,
+				ExpiresAt:  freshness.expiresAt,
+				StoredAt:   freshness.storedAt,
+				InitialAge: freshness.initialAge,
 			}
 			pending, err := s.cache.Begin(key, entry)
 			if err != nil {

@@ -25,7 +25,8 @@ func (s *Store) Load() error {
 			continue
 		}
 		var item metadata
-		if err := json.Unmarshal(data, &item); err != nil || !time.Now().Before(item.ExpiresAt) {
+		if err := json.Unmarshal(data, &item); err != nil || item.StoredAt.IsZero() ||
+			item.InitialAgeNanoseconds < 0 || !time.Now().Before(item.ExpiresAt) {
 			continue
 		}
 		key := item.Key
