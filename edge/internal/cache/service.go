@@ -13,7 +13,10 @@ import (
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/cdn"
 )
 
-const statusClientClosedRequest = 499
+const (
+	statusClientClosedRequest = 499
+	unknownHostMetricLabel    = "unknown"
+)
 
 type CDNStore interface {
 	FindByDomain(string) (cdn.CDN, bool)
@@ -64,15 +67,16 @@ func (s *Service) Handle(ctx context.Context, request Request) Response {
 	host := cdn.NormalizeDomain(request.Host)
 	item, ok := s.cdns.FindByDomain(host)
 	if !ok {
-		s.metrics.RecordError(host, "unknown_host")
+		s.metrics.RecordError(unknownHostMetricLabel, "unknown_host")
 		response := Response{
 			StatusCode:  http.StatusBadGateway,
 			Header:      map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
 			Body:        io.NopCloser(strings.NewReader(fmt.Sprintf("Unknown host: %s", request.Host))),
 			CacheStatus: "error",
 		}
-		return s.trackResponse(request, host, response, startedAt)
+		return s.trackResponse(request, unknownHostMetricLabel, response, startedAt)
 	}
+	host = item.Domain()
 
 	if request.Method != http.MethodGet {
 		response := s.fetch(ctx, request, item, "proxy")

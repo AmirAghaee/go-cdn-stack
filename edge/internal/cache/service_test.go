@@ -97,9 +97,86 @@ func (fakeMetrics) RecordBytesReceived(string, int64)                   {}
 func (fakeMetrics) RecordBytesSent(string, string, int64)               {}
 func (fakeMetrics) RecordError(string, string)                          {}
 
+type hostRecordingMetrics struct {
+	hosts []string
+}
+
+func (m *hostRecordingMetrics) record(host string) {
+	m.hosts = append(m.hosts, host)
+}
+
+func (m *hostRecordingMetrics) RecordRequest(host, _, _ string, _ time.Duration) {
+	m.record(host)
+}
+func (m *hostRecordingMetrics) RecordCacheHit(host string)  { m.record(host) }
+func (m *hostRecordingMetrics) RecordCacheMiss(host string) { m.record(host) }
+func (m *hostRecordingMetrics) RecordOriginRequest(host, _ string, _ time.Duration) {
+	m.record(host)
+}
+func (m *hostRecordingMetrics) RecordBytesReceived(host string, _ int64) { m.record(host) }
+func (m *hostRecordingMetrics) RecordBytesSent(host, _ string, _ int64)  { m.record(host) }
+func (m *hostRecordingMetrics) RecordError(host, _ string)               { m.record(host) }
+
 type concurrentCacheStore struct {
 	mu    sync.Mutex
 	items map[string]concurrentCacheEntry
+}
+
+func TestUnknownHostsUseOneMetricLabel(t *testing.T) {
+	item := mustCDN(t, 60)
+	metrics := &hostRecordingMetrics{}
+	service := NewService(
+		fakeCDNStore{item: item},
+		&fakeCacheStore{items: make(map[string]Entry)},
+		&fakeOrigin{},
+		metrics,
+		0,
+	)
+
+	for _, host := range []string{"attacker-one.example", "attacker-two.example:8080", "127.0.0.1"} {
+		response := service.Handle(context.Background(), Request{Method: http.MethodGet, Host: host, URI: "/"})
+		if response.StatusCode != http.StatusBadGateway {
+			t.Fatalf("response status for host %q = %d", host, response.StatusCode)
+		}
+		_ = readResponseBody(t, response)
+	}
+
+	if len(metrics.hosts) == 0 {
+		t.Fatal("no metrics were recorded")
+	}
+	for _, host := range metrics.hosts {
+		if host != unknownHostMetricLabel {
+			t.Fatalf("metric host = %q, want %q", host, unknownHostMetricLabel)
+		}
+	}
+}
+
+func TestKnownHostMetricsUseConfiguredDomain(t *testing.T) {
+	item := mustCDN(t, 60)
+	metrics := &hostRecordingMetrics{}
+	service := NewService(
+		fakeCDNStore{item: item},
+		&fakeCacheStore{items: make(map[string]Entry)},
+		&fakeOrigin{},
+		metrics,
+		0,
+	)
+
+	response := service.Handle(context.Background(), Request{
+		Method: http.MethodPost,
+		Host:   "CDN.EXAMPLE.:443",
+		URI:    "/",
+	})
+	_ = readResponseBody(t, response)
+
+	if len(metrics.hosts) == 0 {
+		t.Fatal("no metrics were recorded")
+	}
+	for _, host := range metrics.hosts {
+		if host != item.Domain() {
+			t.Fatalf("metric host = %q, want configured domain %q", host, item.Domain())
+		}
+	}
 }
 
 type concurrentCacheEntry struct {
