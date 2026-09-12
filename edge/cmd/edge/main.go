@@ -23,8 +23,8 @@ import (
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/edgehealth/natspublisher"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/platform/config"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/platform/httpserver"
+	"github.com/AmirAghaee/go-cdn-stack/edge/internal/platform/natsbroker"
 	"github.com/AmirAghaee/go-cdn-stack/edge/internal/platform/observability"
-	"github.com/AmirAghaee/go-cdn-stack/pkg/messaging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -105,14 +105,19 @@ func main() {
 		log.Printf("periodic CDN synchronization failed: %v", err)
 	})
 
-	if broker, err := messaging.NewNatsBroker(cfg.NATSURL); err != nil {
-		log.Printf("NATS unavailable; continuing with periodic CDN sync: %v", err)
-	} else {
-		if err := natshandler.New(broker, snapshotService).Register(ctx); err != nil {
-			log.Printf("register CDN snapshot subscriber: %v", err)
-		}
-		go edgehealth.NewService(natspublisher.New(broker), snapshotService, "edge", cfg.AppName, appVersion, 10*time.Second).Run(ctx)
+	broker, err := natsbroker.New(cfg.NATSURL)
+	if err != nil {
+		log.Fatalf("initialize NATS client: %v", err)
 	}
+	defer broker.Close()
+	initiallyConnected := broker.Connected()
+	if !initiallyConnected {
+		log.Printf("NATS unavailable; retrying while periodic CDN sync continues")
+	}
+	if err := natshandler.New(broker, snapshotService).Register(ctx); err != nil {
+		log.Printf("register CDN snapshot subscriber: %v", err)
+	}
+	go runHealthPublisher(ctx, broker, snapshotService, cfg.AppName, initiallyConnected)
 
 	serverErrors := make(chan error, 2)
 	go serve(publicServer, "public", serverErrors)
@@ -133,6 +138,16 @@ func main() {
 	if err := internalServer.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shut down internal server: %v", err)
 	}
+}
+
+func runHealthPublisher(ctx context.Context, broker *natsbroker.Broker, readiness edgehealth.Readiness, instance string, initiallyConnected bool) {
+	if err := broker.WaitForConnection(ctx); err != nil {
+		return
+	}
+	if !initiallyConnected {
+		log.Printf("NATS connection recovered; messaging is active")
+	}
+	edgehealth.NewService(natspublisher.New(broker), readiness, "edge", instance, appVersion, 10*time.Second).Run(ctx)
 }
 
 func serve(server *http.Server, name string, errorsChannel chan<- error) {
